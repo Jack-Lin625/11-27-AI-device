@@ -3,9 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>On-Device AI 光線判斷</title>
+    <title>OOOOO · On-Device AI 光線顧問</title>
 
-    <!-- 不再使用外部 CDN，全部用原生 JS，在裝置上做亮度模型 -->
+    <!-- 不使用外部 AI CDN，全部在本機用 JS 做亮度小模型 -->
 
     <style>
         body {
@@ -68,7 +68,7 @@
             pointer-events: auto;
         }
 
-        /* 下方大建議卡片 */
+        /* 下方建議卡片 */
         .suggestion-card {
             background: rgba(0, 0, 0, 0.6);
             color: #fff;
@@ -161,6 +161,12 @@
             color: #aaa;
             margin-top: 8px;
         }
+
+        /* 偵測框樣式（這裡用來做下方色塊的風格） */
+        .prediction-text {
+            font-weight: bold;
+            text-transform: uppercase;
+        }
     </style>
 </head>
 <body>
@@ -176,7 +182,7 @@
         <div class="suggestion-card">
             <div class="suggestion-title" id="suggest-title">尚未分析光線</div>
             <div class="suggestion-detail" id="suggest-detail">
-                按下「開始偵測」，OOOOO 會讀取環境亮度，幫你判斷現在比較適合讀書、玩遊戲還是睡覺。
+                按下「開始偵測光線」，OOOOO 會讀取環境亮度，幫你判斷現在比較適合讀書、玩遊戲、放鬆還是睡覺。
             </div>
             <div class="suggestion-light" id="suggest-light">平均亮度：—（0 暗 ~ 255 亮）</div>
         </div>
@@ -184,13 +190,13 @@
 
     <div id="start-screen">
         <div class="loader" id="loader"></div>
-        <h2 id="loading-text">準備啟動 On-Device 亮度模型</h2>
+        <h2 id="loading-text">準備啟動 On-Device 光線模型</h2>
         <p style="font-size: 0.9em; color: #aaa; margin: 0 20px;">
-            請允許相機權限。<br>頁面載入後可離線使用，只在你的裝置上計算亮度。
+            請允許相機權限。<br>模型啟動後，只要這個頁面不關閉，就能在無網路 / 飛航模式下繼續使用。
         </p>
         <button id="btn-start">開始偵測光線</button>
         <div class="offline-tip">
-            提示：載入完成後，關掉網路 / 開飛航模式也能繼續用。
+            提示：這個 Demo 全部在你的手機端運算，畫面不會上傳。
         </div>
     </div>
 
@@ -212,7 +218,7 @@
 
         let isRunning = false;
 
-        // 用來計算亮度的「隱藏 canvas」，不加到 DOM 裡
+        // 用來計算亮度的隱藏 canvas（不加到 DOM）
         const sampleCanvas = document.createElement('canvas');
         const sampleCtx = sampleCanvas.getContext('2d');
 
@@ -224,13 +230,12 @@
 
             try {
                 await initCamera();
-                // 模型其實只是 JS 規則，這邊當作「載入完成」
-                loadingText.innerText = "環境初始化完成！";
 
-                // 一點點延遲讓使用者看到提示
+                loadingText.innerText = "環境初始化完成，準備開始偵測光線";
+
                 setTimeout(() => {
                     startScreen.style.display = 'none';
-                    statusText.innerText = "On-Device 亮度模型運行中";
+                    statusText.innerText = "On-Device 亮度模型運作中";
                     resizeCanvas();
                     isRunning = true;
                     requestAnimationFrame(brightnessLoop);
@@ -238,7 +243,7 @@
                 }, 500);
             } catch (error) {
                 console.error(error);
-                loadingText.innerText = "錯誤：" + error.message;
+                loadingText.innerText = "錯誤: " + error.message;
                 loader.style.display = 'none';
                 btnStart.style.display = 'inline-block';
                 btnStart.innerText = "重試";
@@ -250,7 +255,7 @@
             const constraints = {
                 audio: false,
                 video: {
-                    facingMode: 'environment', // 優先用後鏡頭測環境光
+                    facingMode: 'environment', // 優先使用後鏡頭量環境光
                     width: { ideal: 640 },
                     height: { ideal: 480 }
                 }
@@ -273,7 +278,7 @@
             canvas.height = video.videoHeight;
         }
 
-        // 計算平均亮度
+        // 計算平均亮度（0~255）
         function computeAverageBrightness(imageData) {
             const data = imageData.data;
             let sum = 0;
@@ -293,33 +298,37 @@
 
         // 根據亮度給建議：讀書 / 玩遊戲 / 放鬆 / 睡覺
         function suggestByBrightness(avgBrightness) {
-            // 0 ~ 255
+            // 回傳標題、描述、底部色塊
             let suggestion = {
                 title: "亮度資訊不足",
-                detail: "再讓鏡頭多看一下周圍環境，或微調一下手機位置。",
-                color: "rgba(148, 163, 184, 0.40)" // default 灰色
+                detail: "再讓鏡頭多看一下環境，或稍微移動一下手機位置。",
+                color: "rgba(148, 163, 184, 0.40)" // 灰色
             };
 
-            if (avgBrightness >= 180) {
+            if (avgBrightness >= 190) {
                 suggestion.title = "超適合讀書 / 專心工作";
-                suggestion.detail = "環境非常明亮，注意螢幕別太刺眼就很適合讀書、寫作業、專心寫程式。";
-                suggestion.color = "rgba(74, 222, 128, 0.28)"; // 綠光
-            } else if (avgBrightness >= 130 && avgBrightness < 180) {
+                suggestion.detail = "環境非常明亮，很適合讀書、寫作業、寫程式。注意螢幕不要太刺眼就好。";
+                suggestion.color = "rgba(74, 222, 128, 0.28)"; // 綠
+            } else if (avgBrightness >= 150 && avgBrightness < 190) {
+                suggestion.title = "適合認真做事或上課";
+                suggestion.detail = "光線充足但不刺眼，很適合上課、做報告、整理筆記。";
+                suggestion.color = "rgba(52, 211, 153, 0.28)"; // 青綠
+            } else if (avgBrightness >= 120 && avgBrightness < 150) {
                 suggestion.title = "很適合玩遊戲 / 看影片";
-                suggestion.detail = "光線偏中等，螢幕不會太亮也不會太暗，很適合打遊戲、追劇、逛 IG。";
-                suggestion.color = "rgba(56, 189, 248, 0.28)"; // 藍光
-            } else if (avgBrightness >= 90 && avgBrightness < 130) {
+                suggestion.detail = "亮度偏中等，螢幕不會太亮也不會太暗，當作娛樂時間剛剛好。";
+                suggestion.color = "rgba(56, 189, 248, 0.28)"; // 淺藍
+            } else if (avgBrightness >= 80 && avgBrightness < 120) {
                 suggestion.title = "微暗環境 · 比較適合放鬆";
-                suggestion.detail = "這種亮度讀書容易想睡，可以當作滑手機、聽歌、跟朋友聊天的 Chill 模式。";
-                suggestion.color = "rgba(251, 191, 36, 0.28)"; // 黃光
-            } else if (avgBrightness >= 50 && avgBrightness < 90) {
+                suggestion.detail = "這種亮度讀書容易想睡，適合聽音樂、滑手機、跟朋友聊天。";
+                suggestion.color = "rgba(251, 191, 36, 0.28)"; // 黃
+            } else if (avgBrightness >= 40 && avgBrightness < 80) {
                 suggestion.title = "偏暗 · 很適合準備睡覺";
-                suggestion.detail = "亮度已經蠻低了，很適合收工準備睡覺。長時間盯螢幕會更傷眼。";
+                suggestion.detail = "亮度已經蠻低了，很適合收工休息。如果還要看螢幕，建議調低亮度。";
                 suggestion.color = "rgba(96, 165, 250, 0.30)"; // 深藍
             } else {
                 suggestion.title = "幾乎全暗 · 睡覺時間到";
-                suggestion.detail = "這個亮度還在滑手機真的超傷眼，建議把手機放下，好好睡一覺。";
-                suggestion.color = "rgba(15, 23, 42, 0.75)"; // 深黑藍
+                suggestion.detail = "這個亮度滑手機真的超傷眼，建議直接放下手機好好睡一覺。";
+                suggestion.color = "rgba(15, 23, 42, 0.80)"; // 很深
             }
 
             return suggestion;
@@ -334,7 +343,7 @@
                 return;
             }
 
-            // 每 200ms 更新一次就好，避免太吃效能
+            // 每 200ms 更新一次，避免太吃效能
             if (timestamp - lastUpdateTime > 200) {
                 lastUpdateTime = timestamp;
 
@@ -347,7 +356,7 @@
                 sampleCanvas.width = sampleWidth;
                 sampleCanvas.height = sampleHeight;
 
-                // 把 video 畫到「隱藏 canvas」
+                // 把影片畫到「隱藏 canvas」
                 sampleCtx.drawImage(video, 0, 0, sampleWidth, sampleHeight);
 
                 const imageData = sampleCtx.getImageData(0, 0, sampleWidth, sampleHeight);
@@ -365,12 +374,14 @@
                 suggestDetail.innerText = suggestion.detail;
                 suggestLight.innerText = `平均亮度：約 ${avgBrightness.toFixed(0)}（0 暗 ~ 255 亮）`;
 
-                // 更新狀態列
-                let levelText = "偵測到的光線狀態：";
-                if (avgBrightness >= 180) levelText += "非常明亮 ✅";
-                else if (avgBrightness >= 130) levelText += "中等偏亮 ✅";
-                else if (avgBrightness >= 90) levelText += "偏暗 🌙";
-                else levelText += "超暗 🌙";
+                // 更新上方狀態列
+                let levelText = "偵測到的光線：";
+                if (avgBrightness >= 190) levelText += "超亮 ✅ 適合讀書";
+                else if (avgBrightness >= 150) levelText += "明亮 ✅ 適合工作";
+                else if (avgBrightness >= 120) levelText += "中等 ✅ 適合娛樂";
+                else if (avgBrightness >= 80) levelText += "偏暗 🌙 比較放鬆";
+                else levelText += "很暗 🌙 適合睡覺";
+
                 statusText.innerText = levelText + " · On-Device 運算中";
             }
 
