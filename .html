@@ -3,27 +3,71 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>AI On-Device 離線光線判斷</title>
+    <title>光線判定：AI 離線活動推薦</title>
     
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.14.0/dist/tf.min.js"></script>
 
     <style>
-        /* (CSS 樣式保持不變，略過以節省空間，請使用上一個回覆提供的完整 CSS) */
-        body { margin: 0; padding: 0; background-color: #000; font-family: sans-serif; overflow: hidden; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; }
-        #cam-container { position: relative; width: 100%; height: 100%; display: flex; justify-content: center; align-items: center; background: #111; }
-        video { position: absolute; width: 100%; height: 100%; object-fit: cover; }
-        #canvas { display: none; }
-        #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 10; pointer-events: none; display: flex; flex-direction: column; justify-content: space-between; padding: 20px; box-sizing: border-box; }
-        .status-bar { background: rgba(0, 0, 0, 0.6); color: #00ffcc; padding: 10px 15px; border-radius: 20px; font-size: 14px; backdrop-filter: blur(5px); align-self: flex-start; pointer-events: auto; margin-top: 10px; line-height: 1.6; }
-        #result-display { background: rgba(0, 0, 0, 0.7); color: white; padding: 20px; border-radius: 15px; align-self: center; margin-bottom: 50px; width: 90%; max-width: 400px; text-align: center; pointer-events: auto; }
-        #light-level { font-size: 1.8em; font-weight: bold; color: #FFC107; margin-bottom: 5px; }
-        #activity-recommendation { font-size: 1.1em; color: #B3E5FC; }
-        #start-screen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.85); z-index: 20; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; color: white; }
-        button { background: #007aff; color: white; border: none; padding: 15px 40px; font-size: 18px; border-radius: 30px; cursor: pointer; margin-top: 20px; font-weight: bold; box-shadow: 0 4px 15px rgba(0,122,255,0.4); transition: transform 0.2s; }
+        /* 基礎樣式和佈局 */
+        body { 
+            margin: 0; padding: 0; background-color: #000; font-family: sans-serif; 
+            overflow: hidden; display: flex; flex-direction: column; align-items: center; 
+            justify-content: center; height: 100vh;
+        }
+        #cam-container { 
+            position: relative; width: 100%; height: 100%; display: flex; 
+            justify-content: center; align-items: center; background: #111; 
+        }
+        video { 
+            position: absolute; width: 100%; height: 100%; object-fit: cover; 
+        }
+        #canvas { display: none; } /* Canvas 用於內部處理，不顯示 */
+
+        /* 介面覆蓋層 */
+        #ui-layer { 
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%; 
+            z-index: 10; pointer-events: none; display: flex; flex-direction: column; 
+            justify-content: space-between; padding: 20px; box-sizing: border-box; 
+        }
+        .status-bar { 
+            background: rgba(0, 0, 0, 0.6); color: #00ffcc; padding: 10px 15px; 
+            border-radius: 20px; font-size: 14px; backdrop-filter: blur(5px); 
+            align-self: flex-start; pointer-events: auto; margin-top: 10px; line-height: 1.6; 
+        }
+        #result-display { 
+            background: rgba(0, 0, 0, 0.7); color: white; padding: 20px; border-radius: 15px; 
+            align-self: center; margin-bottom: 50px; width: 90%; max-width: 400px; 
+            text-align: center; pointer-events: auto; 
+        }
+        #light-level { 
+            font-size: 1.8em; font-weight: bold; color: #FFC107; margin-bottom: 5px; 
+        }
+        #activity-recommendation { 
+            font-size: 1.1em; color: #B3E5FC; 
+        }
+        
+        /* 啟動畫面 */
+        #start-screen { 
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%; 
+            background: rgba(0, 0, 0, 0.85); z-index: 20; display: flex; 
+            flex-direction: column; justify-content: center; align-items: center; 
+            text-align: center; color: white; 
+        }
+        button { 
+            background: #007aff; color: white; border: none; padding: 15px 40px; 
+            font-size: 18px; border-radius: 30px; cursor: pointer; margin-top: 20px; 
+            font-weight: bold; box-shadow: 0 4px 15px rgba(0,122,255,0.4); transition: transform 0.2s; 
+        }
         button:active { transform: scale(0.95); }
         button:disabled { background: #555; color: #888; cursor: not-allowed; box-shadow: none; }
-        .loader { border: 4px solid #f3f3f3; border-top: 4px solid #00ffcc; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin-bottom: 20px; display: none; }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .loader { 
+            border: 4px solid #f3f3f3; border-top: 4px solid #00ffcc; border-radius: 50%; 
+            width: 40px; height: 40px; animation: spin 1s linear infinite; margin-bottom: 20px; 
+            display: none; 
+        }
+        @keyframes spin { 
+            0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } 
+        }
     </style>
 </head>
 <body>
@@ -43,15 +87,16 @@
 
     <div id="start-screen">
         <div class="loader" id="loader"></div>
-        <h2 id="loading-text">準備載入 AI 模型</h2>
-        <p style="font-size: 0.9em; color: #aaa; margin: 0 20px;">
-            **【重要】** 首次運行需連線網路。成功載入後，<br>AI 推論將可**完全離線運作**。
+        <h2 id="loading-text">光線判定：AI 模型準備中</h2>
+        <p id="info-text" style="font-size: 0.9em; color: #aaa; margin: 0 20px;">
+            **【步驟 1/2】** 請保持網路連線，正在下載 AI 模型 (約 4 MB)。<br>
+            **【步驟 2/2】** 載入完成後，即可切換至**飛航模式**進行離線推論。
         </p>
         <button id="btn-start" disabled>開始辨識 (載入中)</button>
     </div>
 
     <script>
-        // DOM 元素 (略)
+        // DOM 元素
         const video = document.getElementById('video');
         const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
@@ -60,6 +105,7 @@
         const startScreen = document.getElementById('start-screen');
         const loader = document.getElementById('loader');
         const loadingText = document.getElementById('loading-text');
+        const infoText = document.getElementById('info-text');
         const lightLevelElement = document.getElementById('light-level');
         const recommendationElement = document.getElementById('activity-recommendation');
 
@@ -67,80 +113,64 @@
         let animationFrameId = null;
         const MODEL_INPUT_SIZE = 224; 
         
-        // 活動推薦字典 (保持不變)
+        // 活動推薦字典
         const ACTIVITIES = {
-            '明亮戶外/高光': {
-                emoji: '☀️',
-                level: '明亮戶外/高光',
-                recommend: '慢跑、騎單車、戶外野餐、拍攝風景照',
-                color: '#FFD700'
-            },
-            '充足室內/中光': {
-                emoji: '💡',
-                level: '充足室內/中光',
-                recommend: '閱讀書籍、規劃清單、學習新技能、進行視訊會議',
-                color: '#00ffcc'
-            },
-            '昏暗夜晚/低光': {
-                emoji: '🌙',
-                level: '昏暗夜晚/低光',
-                recommend: '冥想放鬆、聽輕音樂、撰寫日記、準備就寢',
-                color: '#8A2BE2'
-            },
-            '未知環境': {
-                emoji: '🤔',
-                level: '無法判斷',
-                recommend: '請調整鏡頭角度，對準環境光線',
-                color: '#E91E63'
-            }
+            '明亮戶外/高光': { emoji: '☀️', level: '明亮戶外/高光', recommend: '慢跑、騎單車、戶外野餐、拍攝風景照', color: '#FFD700' },
+            '充足室內/中光': { emoji: '💡', level: '充足室內/中光', recommend: '閱讀書籍、規劃清單、學習新技能、進行視訊會議', color: '#00ffcc' },
+            '昏暗夜晚/低光': { emoji: '🌙', level: '昏暗夜晚/低光', recommend: '冥想放鬆、聽輕音樂、撰寫日記、準備就寢', color: '#8A2BE2' },
+            '未知環境': { emoji: '🤔', level: '無法判斷', recommend: '請調整鏡頭角度，對準環境光線', color: '#E91E63' }
         };
 
         window.onload = async () => {
+            // **【修復空白頁問題】**：檢查 TensorFlow.js 是否已載入
+            if (typeof tf === 'undefined') {
+                loadingText.textContent = "❌ 錯誤：TensorFlow.js 核心函式庫載入失敗！";
+                infoText.innerHTML = "請檢查您的**網路連線**或您的**手機瀏覽器是否支援 WebGL**。";
+                return; // 終止腳本執行，避免 ReferenceError 導致空白
+            }
+
             btnStart.addEventListener('click', startAIInference);
-            // 由於模型載入需要時間，先禁用按鈕
-            btnStart.disabled = true;
             await loadModelAndSetupCamera();
         }
 
         async function loadModelAndSetupCamera() {
-            loadingText.innerText = "正在嘗試下載/載入 MobileNetV3 模型 (約 4 MB)...";
+            loadingText.textContent = "光線判定：AI 模型準備中";
+            infoText.innerHTML = "【步驟 1/2】請保持網路連線，正在下載 AI 模型 (約 4 MB)...";
             loader.style.display = 'block';
 
             try {
-                // A. 載入 MobileNetV3 分類模型
-                // 瀏覽器如果快取了這些檔案，即使離線也可能成功
+                // A. 載入 MobileNetV3 分類模型 (需網路)
                 model = await tf.loadGraphModel(
                     'https://tfhub.dev/google/imagenet/mobilenet_v3_small_075_224/classification/5',
                     { fromTFHub: true }
                 );
                 
-                // 預熱 AI 核心
-                tf.tidy(() => {
-                    model.predict(tf.zeros([1, MODEL_INPUT_SIZE, MODEL_INPUT_SIZE, 3]));
-                });
+                tf.tidy(() => { model.predict(tf.zeros([1, MODEL_INPUT_SIZE, MODEL_INPUT_SIZE, 3])); });
                 
-                loadingText.innerText = "✅ 模型載入完成！正在啟動相機...";
+                loadingText.textContent = "✅ 模型載入完成！正在啟動相機...";
+                infoText.innerHTML = "【步驟 2/2】請允許相機權限。";
                 
                 // B. 啟動相機
-                await setupCamera();
-                
-                loadingText.innerText = "相機就緒！AI 已準備好 **離線推論**。";
+                const cameraSuccess = await setupCamera();
+                if (!cameraSuccess) return; // 相機失敗則終止
+
+                loadingText.textContent = "✅ 相機就緒！";
+                infoText.innerHTML = "AI 已準備好 **離線推論**。請點擊開始，即可切換飛航模式。";
                 btnStart.disabled = false;
-                btnStart.innerText = "🚀 開始 AI 判斷 (請切換飛航模式測試)";
+                btnStart.innerText = "🚀 開始 AI 判斷 (可離線)";
 
             } catch (error) {
-                console.error('初始化失敗:', error);
+                console.error('模型載入或初始化失敗:', error);
                 
-                // 關鍵錯誤處理：提醒使用者需要網路
-                loadingText.innerHTML = `❌ **模型載入失敗！** <br>請檢查網路連線，確保 MobileNetV3 模型檔案 (約 4MB) 能夠首次下載。`;
+                // 更清晰的錯誤提示
+                loadingText.textContent = `❌ 模型載入失敗！`;
+                infoText.innerHTML = `請檢查您的**網路連線**，模型檔案可能下載失敗。錯誤詳情: ${error.message.substring(0, 60)}...`;
                 loader.style.display = 'none';
                 btnStart.disabled = true; 
                 btnStart.innerText = "🚨 載入失敗 (需連網)";
             }
         }
 
-        // --- 以下函式保持不變 (setupCamera, resizeCanvas, startAIInference, predictLoop, updateUI, onbeforeunload) ---
-        
         async function setupCamera() {
             const constraints = {
                 audio: false,
@@ -157,8 +187,9 @@
                     };
                 });
             } catch (e) {
-                // 處理相機權限被拒絕的情況
-                loadingText.innerHTML = `❌ 相機啟動失敗！<br>請檢查瀏覽器設定，授予相機權限。`;
+                // **【修復空白頁問題】**：相機權限被拒絕的明確提示
+                loadingText.textContent = `❌ 相機權限被拒絕！`;
+                infoText.innerHTML = `請允許瀏覽器使用相機權限才能進行光線判定。`;
                 btnStart.disabled = true;
                 return false;
             }
@@ -211,6 +242,7 @@
 
                 let lightResult;
 
+                // 根據 MobileNetV3 索引模擬光線判斷
                 if (maxProb < 0.3) {
                     lightResult = ACTIVITIES['未知環境'];
                 } else if (topIndex >= 100 && topIndex < 300) {
