@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>AI 躲避跑酷：姿勢判斷遊戲</title>
+    <title>AI 躲避跑酷：動作判定遊戲</title>
     
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.14.0/dist/tf.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/movenet@1.0.0/dist/movenet.min.js"></script>
 
     <style>
-        /* 基礎樣式和佈局 */
+        /* 基礎樣式和佈局 (保持全屏風格) */
         body { 
             margin: 0; padding: 0; background-color: #000; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
             overflow: hidden; display: flex; flex-direction: column; align-items: center; 
@@ -58,7 +58,9 @@
         /* 啟動畫面 */
         #start-screen { 
             position: absolute; top: 0; left: 0; width: 100%; height: 100%; 
-            background: rgba(0, 0, 0, 0.9); z-index: 20; display: flex; 
+            /* 讓背景略微透明，以防全黑被誤認為全白 */
+            background: rgba(0, 0, 0, 0.95); 
+            z-index: 20; display: flex; 
             flex-direction: column; justify-content: center; align-items: center; 
             text-align: center; color: white; 
         }
@@ -90,7 +92,7 @@
         <div class="status-bar" id="status">等待啟動...</div>
         
         <div id="game-info">
-            <div id="current-action">準備就緒</div>
+            <div id="current-action">等待動作判定</div>
             <div id="score-display">分數: 0 | 姿勢: 站立</div>
         </div>
     </div>
@@ -99,8 +101,8 @@
         <div class="loader" id="loader"></div>
         <h2 id="loading-text">AI 躲避跑酷：模型準備中</h2>
         <p id="info-text" style="font-size: 0.9em; color: #aaa; margin: 0 20px;">
-            **【重要】** 遊戲需使用前置鏡頭。請確保網路穩定。<br>
-            **【離線機制】** 首次連線下載完模型後，即可完全離線遊玩。
+            **【步驟 1/2】** 請保持網路連線，下載 MoveNet 遊戲模型 (約 25MB)。<br>
+            **【步驟 2/2】** 啟動相機後，即可點擊開始，遊戲可**完全離線運作**。
         </p>
         <button id="btn-start" disabled>開始遊戲 (載入中)</button>
     </div>
@@ -138,10 +140,10 @@
 
         // 1. 初始化
         window.onload = async () => {
-            // **【排除空白頁問題 1】**：檢查 TensorFlow.js 是否成功載入
+            // **【修復全白問題 1】**：確保 tf 和 movenet 物件存在
             if (typeof tf === 'undefined' || typeof movenet === 'undefined') {
-                loadingText.textContent = "❌ 錯誤：AI 核心函式庫載入失敗！";
-                infoText.innerHTML = "請檢查您的**網路連線**，確保能存取 CDN 資源。";
+                loadingText.textContent = "❌ 核心錯誤：AI 函式庫載入失敗！";
+                infoText.innerHTML = "請檢查網路連線或您的瀏覽器是否支援 WebGL。";
                 return; 
             }
             btnStart.addEventListener('click', startGame);
@@ -150,30 +152,33 @@
 
         // 2. 載入模型和相機
         async function loadModelAndSetupCamera() {
-            loadingText.textContent = "AI 模型下載中 (MoveNet - 約 25 MB)...";
-            infoText.innerHTML = "請耐心等待，大型模型首次載入需要時間...";
+            loadingText.textContent = "【步驟 1/2】AI 模型下載中 (MoveNet - 約 25 MB)...";
+            infoText.innerHTML = "請耐心等待，大型模型首次載入需要時間，期間請勿關閉頁面。";
             loader.style.display = 'block';
 
             try {
                 // A. 載入 MoveNet 模型（Lightning 版本，速度更快）
                 model = await movenet.load(movenet.modelType.SINGLEPOSE_LIGHTNING);
                 
-                loadingText.textContent = "模型載入完成！正在啟動相機...";
-                infoText.innerHTML = "請允許相機權限，我們將使用前置鏡頭。";
+                // 執行一次預熱推論，確保 GPU 資源被初始化
+                tf.tidy(() => { model.estimatePoses(tf.zeros([1, 192, 192, 3])); });
+
+                loadingText.textContent = "✅ 模型載入完成！正在啟動相機...";
+                infoText.innerHTML = "【步驟 2/2】請允許相機權限，我們將使用前置鏡頭。";
                 
                 // B. 啟動相機 (使用前置鏡頭: user)
                 const cameraSuccess = await setupCamera();
                 if (!cameraSuccess) return; 
 
-                loadingText.textContent = "✅ 相機就緒！";
-                infoText.innerHTML = "AI 已準備好 **離線推論**。點擊開始遊戲。";
+                loadingText.textContent = "✅ 準備就緒！";
+                infoText.innerHTML = "AI 姿勢偵測已啟動。點擊開始遊戲。";
                 btnStart.disabled = false;
                 btnStart.innerText = "🚀 開始遊戲 (可離線)";
 
             } catch (error) {
                 console.error('模型載入或初始化失敗:', error);
-                loadingText.textContent = `❌ 載入失敗！ (網路問題)`;
-                infoText.innerHTML = `請檢查網路連線，確保模型檔案能夠首次下載。`;
+                loadingText.textContent = `❌ 載入失敗！ (網路或資源問題)`;
+                infoText.innerHTML = `請檢查網路連線或重新整理頁面。錯誤詳情：${error.message.substring(0, 50)}...`;
                 loader.style.display = 'none';
                 btnStart.disabled = true;
             }
@@ -196,7 +201,6 @@
                     };
                 });
             } catch (e) {
-                // **【排除空白頁問題 2】**：相機權限被拒絕的明確提示
                 loadingText.textContent = `❌ 相機權限被拒絕！`;
                 infoText.innerHTML = `請允許瀏覽器使用相機權限才能進行遊戲。`;
                 btnStart.disabled = true;
@@ -211,7 +215,8 @@
         
         // 4. 遊戲啟動與循環
         function startGame() {
-            if (!gameRunning && model) {
+            if (!gameRunning) {
+                // 隱藏啟動畫面，開始遊戲
                 startScreen.style.display = 'none';
                 statusText.textContent = '🚀 遊戲開始！AI 姿勢偵測中...';
                 
@@ -225,26 +230,31 @@
                 if (!animationFrameId) {
                     predictLoop();
                 }
-            } else if (!gameRunning && !model) {
-                // 如果模型沒載入，提示使用者
-                 loadingText.textContent = `🚨 模型未載入，無法開始遊戲。`;
-                 infoText.innerHTML = `請檢查網路並重新整理頁面。`;
+            } else {
+                // 重新開始邏輯
+                score = 0;
+                obstacleSpeed = OBSTACLE_SPEED_INITIAL;
+                gameRunning = true;
+                generateNewObstacle();
+                startScreen.style.display = 'none';
+                statusText.textContent = '🚀 遊戲開始！AI 姿勢偵測中...';
             }
         }
 
         function generateNewObstacle() {
+            // 隨機產生低障礙 (需跳躍) 或 高障礙 (需蹲下)
             const type = Math.random() > 0.5 ? 'low' : 'high';
             obstacle = {
                 x: canvas.width, 
-                // 低障礙物 (需跳躍)，高度在中下方
-                y: type === 'low' ? canvas.height * 0.7 : canvas.height * 0.5, 
+                // 障礙物的 Y 軸位置 (這裡設置在畫面中下部)
+                y: type === 'low' ? canvas.height * 0.75 : canvas.height * 0.45, 
                 width: canvas.width * 0.05,
                 height: canvas.height * 0.1,
                 type: type, 
                 passed: false
             };
             
-            obstacleSpeed += 0.0005; // 增加難度
+            obstacleSpeed += 0.0002; // 隨著分數提高速度
 
             if (type === 'low') {
                 currentActionElement.textContent = '⬆️ 跳躍！(躲避低障礙)';
@@ -281,9 +291,9 @@
                     currentPose = '無法偵測';
                 }
             } else {
-                // 遊戲結束時，顯示重新開始按鈕
+                // 遊戲結束時，顯示重新開始畫面
                 startScreen.style.display = 'flex';
-                loadingText.textContent = `💥 遊戲結束！得分: ${score}`;
+                loadingText.textContent = `💥 遊戲結束！最終得分: ${score}`;
                 infoText.innerHTML = `再試一次！你的姿勢是 ${currentPose}`;
                 btnStart.innerText = "🔄 重新開始";
             }
@@ -296,6 +306,7 @@
         // 6. 姿勢判斷邏輯
         function checkPose(pose) {
             const nose = pose.keypoints[HEAD_INDEX];
+            // 歸一化 Y 軸位置 (0到1)
             const normalizedY = nose.y / canvas.height; 
             
             if (lastHeadY === 0) {
@@ -307,9 +318,11 @@
             
             let poseResult = '站立';
             
-            if (y_diff > POSE_THRESHOLD * 0.7) { // 往下移動
+            if (y_diff > POSE_THRESHOLD * 0.7) { 
+                // 頭部往下移動 (蹲下)
                 poseResult = '蹲下';
-            } else if (y_diff < -POSE_THRESHOLD * 1.5) { // 往上移動 (跳躍)
+            } else if (y_diff < -POSE_THRESHOLD * 1.5) { 
+                // 頭部往上移動 (跳躍)
                 poseResult = '跳躍';
             } else {
                 poseResult = '站立';
@@ -340,30 +353,26 @@
                 return;
             }
             
-            // 碰撞偵測區間
+            // 碰撞偵測區間 (物體在畫面中間，人物準備動作)
             const collisionZoneStart = canvas.width * 0.35;
             const collisionZoneEnd = canvas.width * 0.65;
             const headY = pose.keypoints[HEAD_INDEX].y; 
-            const headX = pose.keypoints[HEAD_INDEX].x;
 
-            // 簡化碰撞：只需判斷障礙物在人物正前方時的 Y 軸位置
             if (obstacle.x > collisionZoneStart && obstacle.x < collisionZoneEnd) {
                 let hit = false;
                 
                 if (obstacle.type === 'low') {
-                    // 低障礙 (需跳躍)
-                    // 如果頭部Y位置低於障礙物的 Y 起點，且當前姿勢不是跳躍，則撞到
-                    if (headY > obstacle.y && currentPose !== '跳躍') hit = true;
+                    // 低障礙 (需跳躍)。如果頭部Y在障礙物下半部且沒有跳躍，則撞到。
+                    if (headY > obstacle.y + obstacle.height / 3 && currentPose !== '跳躍') hit = true;
 
                 } else {
-                    // 高障礙 (需蹲下)
-                    // 如果頭部Y位置高於障礙物的 Y 起點，且當前姿勢不是蹲下，則撞到
-                    if (headY < obstacle.y + obstacle.height && currentPose !== '蹲下') hit = true;
+                    // 高障礙 (需蹲下)。如果頭部Y在障礙物上半部且沒有蹲下，則撞到。
+                    if (headY < obstacle.y + obstacle.height * 2 / 3 && currentPose !== '蹲下') hit = true;
                 }
 
                 if (hit) {
                     gameRunning = false;
-                    currentActionElement.textContent = `💥 遊戲結束！得分: ${score}`;
+                    currentActionElement.textContent = `💥 撞到了！`;
                     currentActionElement.style.color = 'red';
                 }
             }
