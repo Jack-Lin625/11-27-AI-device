@@ -3,12 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>AI 核心驗證版：環境光線判定</title>
+    <title>純JS離線版：環境亮度判定</title>
     
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.14.0/dist/tf.min.js"></script>
-
     <style>
-        /* 保持您原有的全屏風格 */
+        /* 保持原有的全屏風格 */
         body { 
             margin: 0; padding: 0; background-color: #000; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
             overflow: hidden; 
@@ -19,12 +17,13 @@
             position: relative; width: 100%; height: 100%; display: flex; 
             justify-content: center; align-items: center; background: #111; 
         }
-        /* Video 鏡像翻轉，使用前置鏡頭時更直覺 */
+        /* Video 鏡像翻轉 */
         video { 
             position: absolute; width: 100%; height: 100%; object-fit: cover; 
             transform: scaleX(-1); 
         }
-        #canvas { display: none; } /* Canvas 只用於抓幀，隱藏 */
+        /* Canvas 依然存在，但用於計算像素亮度 */
+        #canvas { display: none; } 
 
         /* 介面覆蓋層 */
         #ui-layer { 
@@ -51,7 +50,7 @@
             font-size: 1.2em; color: #B3E5FC; 
         }
 
-        /* 啟動畫面 */
+        /* 啟動畫面 - 簡化為權限提示 */
         #start-screen { 
             position: absolute; top: 0; left: 0; width: 100%; height: 100%; 
             background: rgba(0, 0, 0, 0.95); 
@@ -66,14 +65,6 @@
         }
         button:active { transform: scale(0.95); }
         button:disabled { background: #555; color: #888; cursor: not-allowed; box-shadow: none; }
-        .loader { 
-            border: 4px solid #f3f3f3; border-top: 4px solid #00ffcc; border-radius: 50%; 
-            width: 40px; height: 40px; animation: spin 1s linear infinite; margin-bottom: 20px; 
-            display: none; 
-        }
-        @keyframes spin { 
-            0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } 
-        }
     </style>
 </head>
 <body>
@@ -84,22 +75,21 @@
     </div>
 
     <div id="ui-layer">
-        <div class="status-bar" id="status">等待啟動...</div>
+        <div class="status-bar" id="status">等待相機啟動...</div>
         
         <div id="result-display">
-            <div id="light-level">等待光線判定</div>
+            <div id="light-level">等待亮度判定</div>
             <div id="activity-recommendation"></div>
         </div>
     </div>
 
     <div id="start-screen">
-        <div class="loader" id="loader"></div>
-        <h2 id="loading-text">光線判定：AI 模型準備中</h2>
+        <h2 id="loading-text">離線亮度判定：準備就緒</h2>
         <p id="info-text" style="font-size: 0.9em; color: #aaa; margin: 0 20px;">
-            **【步驟 1/2】** 請保持網路連線，下載 MobileNetV3 模型 (約 4MB)。<br>
-            **【步驟 2/2】** 載入完成後，即可點擊開始，應用程式可**完全離線運作**。
+            此版本使用**純 JavaScript** 計算光線亮度，**無需網路**！<br>
+            請點擊開始，並允許相機權限。
         </p>
-        <button id="btn-start" disabled>開始判定 (載入中)</button>
+        <button id="btn-start">🚀 開始判定 (完全離線)</button>
     </div>
 
     <script>
@@ -110,73 +100,39 @@
         const btnStart = document.getElementById('btn-start');
         const statusText = document.getElementById('status');
         const startScreen = document.getElementById('start-screen');
-        const loader = document.getElementById('loader');
         const loadingText = document.getElementById('loading-text');
         const infoText = document.getElementById('info-text');
         const lightLevelElement = document.getElementById('light-level');
         const recommendationElement = document.getElementById('activity-recommendation');
 
         // 核心參數
-        let model = undefined;
         let animationFrameId = null;
-        const MODEL_INPUT_SIZE = 224; 
         
-        // 活動推薦字典 (根據光線環境)
-        const ACTIVITIES = {
-            '明亮戶外/高光': { emoji: '☀️', level: '明亮戶外/高光', recommend: '慢跑、騎單車、戶外野餐', color: '#FFD700' },
-            '充足室內/中光': { emoji: '💡', level: '充足室內/中光', recommend: '閱讀書籍、規劃清單、學習新技能', color: '#00ffcc' },
-            '昏暗夜晚/低光': { emoji: '🌙', level: '昏暗夜晚/低光', recommend: '冥想放鬆、聽輕音樂、準備就寢', color: '#8A2BE2' },
-            '未知環境': { emoji: '🤔', level: '無法判斷', recommend: '請調整鏡頭角度或檢查光線', color: '#E91E63' }
+        // 活動推薦字典 (根據亮度閾值 0-255)
+        const THRESHOLDS = {
+            '明亮戶外/高光': { min: 180, emoji: '☀️', recommend: '慢跑、騎單車、戶外野餐', color: '#FFD700' },
+            '充足室內/中光': { min: 80, emoji: '💡', recommend: '閱讀書籍、規劃清單、學習新技能', color: '#00ffcc' },
+            '昏暗夜晚/低光': { min: 0, emoji: '🌙', recommend: '冥想放鬆、聽輕音樂、準備就寢', color: '#8A2BE2' }
         };
 
         // 1. 初始化
-        window.onload = async () => {
-            if (typeof tf === 'undefined') {
-                loadingText.textContent = "❌ 核心錯誤：AI 函式庫載入失敗！";
-                infoText.innerHTML = "請檢查網路連線或您的瀏覽器是否支援 WebGL。";
-                return; 
-            }
-            btnStart.addEventListener('click', startAIInference);
-            await loadModelAndSetupCamera();
+        window.onload = () => {
+            btnStart.addEventListener('click', startProcess);
         }
 
-        // 2. 載入模型和相機
-        async function loadModelAndSetupCamera() {
-            loadingText.textContent = "【步驟 1/2】AI 模型下載中 (MobileNetV3 - 約 4 MB)...";
-            infoText.innerHTML = "請保持網路連線，載入速度應較快。";
-            loader.style.display = 'block';
-
-            try {
-                // A. 載入 MobileNetV3 分類模型 (最小化體積)
-                model = await tf.loadGraphModel(
-                    'https://tfhub.dev/google/imagenet/mobilenet_v3_small_075_224/classification/5',
-                    { fromTFHub: true }
-                );
-                
-                tf.tidy(() => { model.predict(tf.zeros([1, MODEL_INPUT_SIZE, MODEL_INPUT_SIZE, 3])); });
-
-                loadingText.textContent = "✅ 模型載入完成！正在啟動相機...";
-                infoText.innerHTML = "【步驟 2/2】請允許相機權限。";
-                
-                // B. 啟動相機 (使用前置鏡頭: user，若失敗則嘗試後置)
-                const cameraSuccess = await setupCamera();
-                if (!cameraSuccess) return; 
-
-                loadingText.textContent = "✅ 準備就緒！";
-                infoText.innerHTML = "AI 判斷已啟動。點擊開始。";
-                btnStart.disabled = false;
-                btnStart.innerText = "🚀 開始判定 (可離線)";
-
-            } catch (error) {
-                console.error('模型載入或初始化失敗:', error);
-                loadingText.textContent = `❌ 載入失敗！`;
-                infoText.innerHTML = `請檢查網路連線或重新整理頁面。錯誤詳情：${error.message.substring(0, 50)}...`;
-                loader.style.display = 'none';
-                btnStart.disabled = true;
+        async function startProcess() {
+            startScreen.style.display = 'none';
+            statusText.textContent = '🚀 嘗試啟動相機...';
+            
+            const cameraSuccess = await setupCamera();
+            if (cameraSuccess) {
+                statusText.textContent = '✅ 相機啟動成功！正在計算亮度 (完全離線)...';
+                // 開始純 JS 循環
+                analyzeBrightnessLoop();
             }
         }
 
-        // 3. 設定相機 (優化了相機啟動，降低失敗率)
+        // 2. 設定相機 (優化啟動，降低失敗率)
         async function setupCamera() {
             const constraints = {
                 audio: false,
@@ -210,96 +166,85 @@
                         };
                     });
                 } catch (e2) {
-                    loadingText.textContent = `❌ 相機權限被拒絕！`;
+                    // 最終失敗提示
+                    loadingText.textContent = `❌ 相機權限被拒絕或不支持！`;
                     infoText.innerHTML = `請允許瀏覽器使用相機權限才能進行判定。`;
-                    btnStart.disabled = true;
+                    startScreen.style.display = 'flex';
                     return false;
                 }
             }
         }
 
-        // 4. 啟動 AI 推論
-        function startAIInference() {
-            if (animationFrameId) {
-                cancelAnimationFrame(animationFrameId);
-                animationFrameId = null;
-                btnStart.textContent = '▶️ 繼續判斷';
-                statusText.textContent = '⏸ AI 判斷已暫停。';
+        // 3. 亮度分析核心 (純 JS 離線運作)
+        function analyzeBrightnessLoop() {
+            if (video.readyState < 2) {
+                animationFrameId = requestAnimationFrame(analyzeBrightnessLoop);
                 return;
             }
 
-            startScreen.style.display = 'none';
-            statusText.textContent = '🚀 AI 運作中 - On Device / 離線模式';
-            btnStart.textContent = '⏸ 暫停判斷';
+            // A. 繪製視訊幀到 Canvas
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            
+            // B. 讀取 Canvas 像素數據
+            try {
+                const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                const data = imageData.data;
+                let totalLuminosity = 0;
+                let pixelCount = 0;
 
-            predictLoop();
-        }
-
-        // 5. 預測循環 (Loop)
-        async function predictLoop() {
-            if (!model || video.readyState < 2) {
-                animationFrameId = requestAnimationFrame(predictLoop);
-                return;
-            }
-
-            tf.tidy(() => {
-                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-                
-                const imageTensor = tf.browser.fromPixels(canvas)
-                    .resizeNearestNeighbor([MODEL_INPUT_SIZE, MODEL_INPUT_SIZE])
-                    .toFloat()
-                    .div(255.0)
-                    .expandDims();
-
-                // **核心輕量級推論**
-                const prediction = model.predict(imageTensor);
-                
-                const topK = tf.topk(prediction, 1);
-                const values = topK.values.dataSync();
-                const indices = topK.indices.dataSync();
-
-                const maxProb = values[0];
-                const topIndex = indices[0];
-
-                let lightResult;
-
-                // 根據 MobileNetV3 索引模擬光線判斷邏輯
-                if (maxProb < 0.3) {
-                    lightResult = ACTIVITIES['未知環境'];
-                } else if (topIndex >= 100 && topIndex < 300) {
-                    lightResult = ACTIVITIES['明亮戶外/高光'];
-                } else if (topIndex >= 300 && topIndex < 700) {
-                    lightResult = ACTIVITIES['充足室內/中光'];
-                } else {
-                    lightResult = ACTIVITIES['昏暗夜晚/低光'];
+                // C. 遍歷像素，計算平均亮度 (Luminosity)
+                // 只取部分像素以提高性能
+                const step = 4 * 10; // 每 10 個像素取樣一次
+                for (let i = 0; i < data.length; i += step) {
+                    const r = data[i];
+                    const g = data[i + 1];
+                    const b = data[i + 2];
+                    
+                    // 亮度公式 (基於 ITU-R BT.709)
+                    const luminosity = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+                    totalLuminosity += luminosity;
+                    pixelCount++;
                 }
 
-                updateUI(lightResult, maxProb);
-            });
-            
-            animationFrameId = requestAnimationFrame(predictLoop);
+                const averageLuminosity = totalLuminosity / pixelCount;
+                
+                // D. 根據平均亮度進行判定
+                let result = { level: '無法判斷', emoji: '?', recommend: '請移動到有光線的地方', color: '#ccc' };
+
+                if (averageLuminosity >= THRESHOLDS['明亮戶外/高光'].min) {
+                    result = THRESHOLDS['明亮戶外/高光'];
+                } else if (averageLuminosity >= THRESHOLDS['充足室內/中光'].min) {
+                    result = THRESHOLDS['充足室內/中光'];
+                } else {
+                    result = THRESHOLDS['昏暗夜晚/低光'];
+                }
+
+                // E. 更新 UI
+                updateUI(result, averageLuminosity);
+
+            } catch (e) {
+                statusText.textContent = `❌ 錯誤：無法讀取 Canvas 數據。`;
+            }
+
+            animationFrameId = requestAnimationFrame(analyzeBrightnessLoop);
         }
 
-        // 6. 更新介面
-        function updateUI(result, probability) {
+        // 4. 更新介面
+        function updateUI(result, avg) {
             lightLevelElement.textContent = `${result.emoji} ${result.level}`;
             lightLevelElement.style.color = result.color;
             
             recommendationElement.innerHTML = 
                 `<strong>推薦活動:</strong> ${result.recommend} 
-                 <br><span style="font-size: 0.8em; opacity: 0.7;"> (信心度: ${Math.round(probability * 100)}%) </span>`;
+                 <br><span style="font-size: 0.8em; opacity: 0.7;"> (平均亮度: ${Math.round(avg)}/255) </span>`;
         }
 
-        // 7. 資源清理
+        // 5. 資源清理
         window.onbeforeunload = () => {
             if (animationFrameId) cancelAnimationFrame(animationFrameId);
             if (video.srcObject) {
                 video.srcObject.getTracks().forEach(track => track.stop());
             }
-            if (model) {
-                model.dispose();
-            }
-            tf.disposeVariables();
         };
 
     </script>
