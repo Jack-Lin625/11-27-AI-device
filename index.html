@@ -1,288 +1,903 @@
 <!DOCTYPE html>
-<html lang="zh-TW">
+<html lang="zh-Hant">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>On-Device AI 物件辨識</title>
-    
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.11.0/dist/tf.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.2/dist/coco-ssd.min.js"></script>
+  <meta charset="UTF-8" />
+  <title>OOOOO Light Coach - On-Device AI</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <meta name="theme-color" content="#020617" />
+  <style>
+    :root {
+      --bg: #020617;
+      --bg-alt: #0b1120;
+      --card: #020617;
+      --accent: #38bdf8;
+      --accent-strong: #0ea5e9;
+      --text-main: #e5e7eb;
+      --text-sub: #9ca3af;
+      --border-subtle: rgba(148, 163, 184, 0.4);
+      --radius-xl: 1.25rem;
+      --radius-lg: 1rem;
+      --radius-pill: 999px;
+      --shadow-soft: 0 18px 45px rgba(15, 23, 42, 0.85);
+    }
 
-    <style>
-        body {
-            margin: 0;
-            padding: 0;
-            background-color: #000;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            overflow: hidden; /* 防止捲動 */
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            height: 100vh;
-        }
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
 
-        /* 視訊與畫布的容器 */
-        #cam-container {
-            position: relative;
-            width: 100%;
-            height: 100%;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            background: #111;
-        }
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: radial-gradient(circle at top, #0f172a 0, #020617 40%, #000 100%);
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+      color: var(--text-main);
+      height: 100%;
+    }
 
-        /* 影像與 Canvas 重疊 */
-        video, canvas {
-            position: absolute;
-            width: 100%;
-            height: 100%;
-            object-fit: cover; /* 讓畫面填滿手機螢幕 */
-        }
+    body {
+      display: flex;
+      justify-content: center;
+      align-items: stretch;
+    }
 
-        /* 介面覆蓋層 (UI Overlay) */
-        #ui-layer {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            z-index: 10;
-            pointer-events: none; /* 讓點擊穿透到下方 */
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between;
-            padding: 20px;
-            box-sizing: border-box;
-        }
+    .app {
+      width: 100%;
+      max-width: 480px;
+      min-height: 100vh;
+      padding: 12px 12px 80px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
 
-        /* 狀態列 */
-        .status-bar {
-            background: rgba(0, 0, 0, 0.6);
-            color: #00ffcc;
-            padding: 10px 15px;
-            border-radius: 20px;
-            font-size: 14px;
-            backdrop-filter: blur(5px);
-            align-self: flex-start;
-            pointer-events: auto;
-        }
+    /* Header */
+    .app-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 14px 16px;
+      border-radius: var(--radius-xl);
+      background: linear-gradient(135deg, rgba(15, 23, 42, 0.98), rgba(15, 23, 42, 0.9));
+      border: 1px solid rgba(148, 163, 184, 0.6);
+      box-shadow: var(--shadow-soft);
+      position: sticky;
+      top: 8px;
+      z-index: 10;
+      backdrop-filter: blur(18px);
+    }
 
-        /* 啟動按鈕 / 載入畫面 */
-        #start-screen {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.85);
-            z-index: 20;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            text-align: center;
-            color: white;
-        }
+    .logo-wrap {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
 
-        button {
-            background: #007aff;
-            color: white;
-            border: none;
-            padding: 15px 40px;
-            font-size: 18px;
-            border-radius: 30px;
-            cursor: pointer;
-            margin-top: 20px;
-            font-weight: bold;
-            box-shadow: 0 4px 15px rgba(0,122,255,0.4);
-            transition: transform 0.2s;
-        }
+    .logo-orb {
+      width: 32px;
+      height: 32px;
+      border-radius: 999px;
+      background: conic-gradient(from 180deg, #38bdf8, #22c55e, #a855f7, #38bdf8);
+      padding: 2px;
+    }
 
-        button:active {
-            transform: scale(0.95);
-        }
+    .logo-orb-inner {
+      width: 100%;
+      height: 100%;
+      border-radius: inherit;
+      background: radial-gradient(circle at 30% 20%, #f9fafb, #0f172a);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+    }
 
-        button:disabled {
-            background: #555;
-            color: #888;
-            cursor: not-allowed;
-            box-shadow: none;
-        }
+    .logo-text {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
 
-        .loader {
-            border: 4px solid #f3f3f3;
-            border-top: 4px solid #00ffcc;
-            border-radius: 50%;
-            width: 40px;
-            height: 40px;
-            animation: spin 1s linear infinite;
-            margin-bottom: 20px;
-            display: none; /* 預設隱藏 */
-        }
+    .logo-title {
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      font-size: 13px;
+    }
 
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
+    .logo-sub {
+      font-size: 11px;
+      color: var(--text-sub);
+    }
 
-        /* 偵測框樣式設定 (由 JS 動態繪製，此處為文字樣式) */
-        .prediction-text {
-            font-weight: bold;
-            text-transform: uppercase;
-        }
-    </style>
+    .badge-pill {
+      padding: 6px 10px;
+      border-radius: var(--radius-pill);
+      background: rgba(15, 23, 42, 0.94);
+      border: 1px solid rgba(148, 163, 184, 0.7);
+      font-size: 11px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--text-sub);
+      white-space: nowrap;
+    }
+
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 999px;
+      background: #f97316;
+      box-shadow: 0 0 10px rgba(248, 113, 113, 0.9);
+      transition: all 0.2s ease;
+    }
+
+    .dot.ok {
+      background: #4ade80;
+      box-shadow: 0 0 10px rgba(74, 222, 128, 0.9);
+    }
+
+    .badge-pill span.status-text {
+      font-weight: 500;
+    }
+
+    .badge-pill .chip {
+      padding: 1px 6px;
+      border-radius: 999px;
+      background: rgba(15, 23, 42, 0.96);
+      border: 1px solid rgba(148, 163, 184, 0.6);
+      font-size: 10px;
+      color: var(--accent);
+    }
+
+    /* Layout */
+    .main {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .section-title {
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.18em;
+      color: var(--text-sub);
+      padding: 0 4px;
+      margin-top: 3px;
+    }
+
+    .card {
+      background: radial-gradient(circle at top left, #111827, #020617 55%);
+      border-radius: var(--radius-xl);
+      padding: 14px 14px 12px;
+      border: 1px solid var(--border-subtle);
+      box-shadow: 0 12px 32px rgba(15, 23, 42, 0.9);
+    }
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+
+    .card-title {
+      font-size: 14px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .card-title span.icon {
+      font-size: 18px;
+    }
+
+    .card-desc {
+      font-size: 12px;
+      color: var(--text-sub);
+      line-height: 1.5;
+      margin-bottom: 10px;
+    }
+
+    .pill-label {
+      font-size: 10px;
+      padding: 4px 8px;
+      border-radius: var(--radius-pill);
+      background: rgba(15, 23, 42, 0.94);
+      border: 1px solid rgba(148, 163, 184, 0.7);
+      color: var(--accent);
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .pill-label span.dot-tiny {
+      width: 6px;
+      height: 6px;
+      border-radius: 999px;
+      background: var(--accent);
+    }
+
+    /* Buttons */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      border-radius: var(--radius-pill);
+      border: none;
+      outline: none;
+      padding: 9px 16px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      background: radial-gradient(circle at top left, var(--accent-strong), var(--accent));
+      color: #0f172a;
+      box-shadow: 0 10px 24px rgba(56, 189, 248, 0.55);
+      transition: transform 0.08s ease, box-shadow 0.08s ease, filter 0.08s ease;
+    }
+
+    .btn:active {
+      transform: translateY(1px) scale(0.98);
+      box-shadow: 0 6px 16px rgba(15, 23, 42, 0.9);
+      filter: brightness(0.96);
+    }
+
+    .btn-secondary {
+      background: rgba(15, 23, 42, 0.96);
+      color: var(--text-main);
+      border: 1px solid rgba(148, 163, 184, 0.7);
+      box-shadow: none;
+    }
+
+    .btn-full {
+      width: 100%;
+      justify-content: center;
+    }
+
+    .btn-small {
+      padding: 7px 14px;
+      font-size: 12px;
+    }
+
+    .btn-icon {
+      font-size: 15px;
+    }
+
+    .row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .row-space {
+      justify-content: space-between;
+    }
+
+    /* Camera */
+    .camera-wrap {
+      border-radius: var(--radius-lg);
+      border: 1px dashed rgba(148, 163, 184, 0.8);
+      background: radial-gradient(circle at top, #0f172a, #020617);
+      overflow: hidden;
+      margin-bottom: 8px;
+    }
+
+    .camera-inner {
+      position: relative;
+      padding: 10px;
+    }
+
+    video {
+      width: 100%;
+      border-radius: 14px;
+      background: #020617;
+      display: block;
+    }
+
+    .camera-overlay {
+      position: absolute;
+      inset: 10px;
+      border-radius: 14px;
+      border: 1px solid rgba(15, 23, 42, 0.9);
+      box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.7);
+      pointer-events: none;
+    }
+
+    .camera-label {
+      position: absolute;
+      left: 16px;
+      top: 14px;
+      padding: 4px 8px;
+      border-radius: 999px;
+      background: rgba(15, 23, 42, 0.94);
+      border: 1px solid rgba(148, 163, 184, 0.7);
+      font-size: 11px;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .camera-label .bulb {
+      width: 7px;
+      height: 7px;
+      border-radius: 999px;
+      background: #f97316;
+      box-shadow: 0 0 8px rgba(249, 115, 22, 0.9);
+      transition: all 0.2s ease;
+    }
+
+    .camera-status {
+      position: absolute;
+      bottom: 14px;
+      left: 16px;
+      right: 16px;
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      color: var(--text-sub);
+    }
+
+    /* Result */
+    .light-result {
+      margin-top: 4px;
+      border-radius: 14px;
+      padding: 9px 10px;
+      background: rgba(15, 23, 42, 0.96);
+      border: 1px solid rgba(148, 163, 184, 0.7);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .light-icon {
+      font-size: 24px;
+      flex-shrink: 0;
+    }
+
+    .light-info {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .light-title {
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .light-sub {
+      font-size: 11px;
+      color: var(--text-sub);
+    }
+
+    .light-meta {
+      font-size: 10px;
+      color: #a5b4fc;
+      margin-top: 3px;
+    }
+
+    .hint {
+      font-size: 11px;
+      color: var(--text-sub);
+      margin-top: 8px;
+      line-height: 1.5;
+    }
+
+    .badge-mini {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 10px;
+      color: var(--text-sub);
+      padding: 3px 8px;
+      border-radius: 999px;
+      border: 1px dashed rgba(148, 163, 184, 0.7);
+      background: rgba(15, 23, 42, 0.98);
+    }
+
+    .badge-mini .mini-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 999px;
+      background: var(--accent);
+    }
+
+    .offline-hint {
+      font-size: 11px;
+      color: var(--text-sub);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 6px;
+    }
+
+    .offline-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 999px;
+      background: #f97316;
+      box-shadow: 0 0 8px rgba(249, 115, 22, 0.8);
+      transition: all 0.2s ease;
+    }
+
+    .offline-hint.ok .offline-dot {
+      background: #22c55e;
+      box-shadow: 0 0 8px rgba(34, 197, 94, 0.9);
+    }
+
+    .offline-hint strong {
+      color: #e5e7eb;
+    }
+
+    /* Idea section */
+    .idea-display {
+      margin-top: 8px;
+      border-radius: 14px;
+      border: 1px dashed rgba(148, 163, 184, 0.8);
+      padding: 10px 10px 8px;
+      background: rgba(15, 23, 42, 0.98);
+      font-size: 12px;
+      line-height: 1.6;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .idea-label {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.18em;
+      color: var(--accent);
+      margin-bottom: 4px;
+    }
+
+    .idea-main {
+      font-size: 13px;
+    }
+
+    .idea-tag {
+      margin-top: 4px;
+      font-size: 10px;
+      color: var(--text-sub);
+    }
+
+    .idea-glow {
+      position: absolute;
+      width: 120px;
+      height: 120px;
+      border-radius: 999px;
+      background: radial-gradient(circle, rgba(56, 189, 248, 0.22), transparent 70%);
+      right: -40px;
+      bottom: -60px;
+      pointer-events: none;
+    }
+
+    /* Bottom nav */
+    .bottom-nav {
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      display: flex;
+      justify-content: center;
+      pointer-events: none;
+      padding: 0 12px 10px;
+    }
+
+    .bottom-nav-inner {
+      width: 100%;
+      max-width: 480px;
+      background: rgba(15, 23, 42, 0.96);
+      border-radius: 999px;
+      border: 1px solid rgba(148, 163, 184, 0.8);
+      display: flex;
+      align-items: center;
+      justify-content: space-around;
+      padding: 6px 10px;
+      pointer-events: auto;
+      backdrop-filter: blur(18px);
+    }
+
+    .nav-btn {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2px;
+      font-size: 10px;
+      color: var(--text-sub);
+      background: none;
+      border: none;
+      padding: 3px 4px;
+    }
+
+    .nav-icon {
+      width: 26px;
+      height: 26px;
+      border-radius: 999px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      background: rgba(15, 23, 42, 0.96);
+      border: 1px solid rgba(148, 163, 184, 0.8);
+    }
+
+    .nav-btn.active {
+      color: var(--accent);
+    }
+
+    .nav-btn.active .nav-icon {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.45);
+    }
+
+    /* Hide canvas */
+    #frameCanvas {
+      display: none;
+    }
+  </style>
 </head>
 <body>
+  <div class="app">
+    <!-- Header -->
+    <header class="app-header">
+      <div class="logo-wrap">
+        <div class="logo-orb">
+          <div class="logo-orb-inner">🔆</div>
+        </div>
+        <div class="logo-text">
+          <div class="logo-title">OOOOO</div>
+          <div class="logo-sub">Light Coach · On-Device AI</div>
+        </div>
+      </div>
+      <div class="badge-pill" id="modelStatus">
+        <span class="dot" id="modelDot"></span>
+        <span class="status-text">載入模型中…</span>
+        <span class="chip">On-Device</span>
+      </div>
+    </header>
 
-    <div id="cam-container">
-        <video id="video" playsinline muted autoplay></video>
-        <canvas id="canvas"></canvas>
-    </div>
+    <main class="main">
+      <div class="section-title">Playground</div>
 
-    <div id="ui-layer">
-        <div class="status-bar" id="status">等待啟動...</div>
-    </div>
-
-    <div id="start-screen">
-        <div class="loader" id="loader"></div>
-        <h2 id="loading-text">準備載入 AI 模型</h2>
-        <p style="font-size: 0.9em; color: #aaa; margin: 0 20px;">
-            請允許相機權限。<br>模型載入後可離線使用。
+      <!-- 主卡片：光線 → 活動建議 -->
+      <section class="card" id="section-main">
+        <div class="card-header">
+          <div class="card-title">
+            <span class="icon">📱</span>
+            <span>根據光線判斷適合做什麼</span>
+          </div>
+          <div class="pill-label">
+            <span class="dot-tiny"></span>
+            <span>亮度小模型 · 全在裝置上跑</span>
+          </div>
+        </div>
+        <p class="card-desc">
+          開啟前鏡頭，OOOOO 會讀取畫面的光線亮度，在你的手機上直接做推論，
+          告訴你現在的環境比較適合 <strong>讀書、玩遊戲、還是睡覺</strong>。
+          圖像不會上傳，所有計算都留在你的裝置裡。
         </p>
-        <button id="btn-start">開始辨識</button>
-    </div>
 
-    <script>
-        // DOM 元素
-        const video = document.getElementById('video');
-        const canvas = document.getElementById('canvas');
-        const ctx = canvas.getContext('2d');
-        const btnStart = document.getElementById('btn-start');
-        const statusText = document.getElementById('status');
-        const startScreen = document.getElementById('start-screen');
-        const loader = document.getElementById('loader');
-        const loadingText = document.getElementById('loading-text');
+        <div class="camera-wrap">
+          <div class="camera-inner">
+            <video id="camera" playsinline autoplay muted></video>
+            <div class="camera-overlay"></div>
+            <div class="camera-label">
+              <span class="bulb" id="camBulb"></span>
+              <span id="camLabelText">相機未啟動</span>
+            </div>
+            <div class="camera-status">
+              <span id="cameraHint">按下「啟動相機」並把手機放在現在的環境位置。</span>
+              <span id="cameraEnv">光線偵測：—</span>
+            </div>
+          </div>
+        </div>
 
-        let model = undefined;
-        let isDetecting = false;
+        <div class="row row-space" style="margin-bottom: 4px;">
+          <button class="btn btn-small" id="btnInitCamera">
+            <span class="btn-icon">📷</span>
+            啟動前鏡頭
+          </button>
+          <button class="btn btn-secondary btn-small" id="btnAnalyze">
+            <span class="btn-icon">🔮</span>
+            分析光線，給建議
+          </button>
+        </div>
 
-        // 1. 初始化：綁定按鈕事件
-        btnStart.addEventListener('click', async () => {
-            btnStart.style.display = 'none'; // 隱藏按鈕
-            loader.style.display = 'block';  // 顯示讀取圈圈
-            loadingText.innerText = "正在載入 AI 模型 (約 2-5 MB)...";
-            
-            try {
-                await initAI();
-            } catch (error) {
-                console.error(error);
-                loadingText.innerText = "錯誤: " + error.message;
-                loader.style.display = 'none';
-                btnStart.style.display = 'inline-block';
-                btnStart.innerText = "重試";
-            }
+        <div class="light-result" id="lightResult">
+          <div class="light-icon" id="lightIcon">🤔</div>
+          <div class="light-info">
+            <div class="light-title" id="lightTitle">等待分析中</div>
+            <div class="light-sub" id="lightSub">
+              開啟相機後按「分析光線」，OOOOO 會根據亮度幫你選：讀書 / 玩遊戲 / 睡覺 / 放鬆。
+            </div>
+            <div class="light-meta" id="lightMeta">平均亮度：—</div>
+          </div>
+        </div>
+
+        <div class="offline-hint" id="offlineHint">
+          <span class="offline-dot"></span>
+          <span>
+            <strong>離線提醒：</strong>模型載入完成後，即使開飛航模式，這個光線判斷功能仍然可用。
+          </span>
+        </div>
+
+        <div class="hint">
+          技術備註：這裡的「亮度模型」其實是一個小小的規則模型（計算畫面平均亮度、加上一點邏輯判斷），
+          但實作方式跟真正的 on-device AI 模型很像 —— 影像在本地取樣、特徵在本地計算、結果在本地產生。
+        </div>
+
+        <!-- 隱藏用來取樣的 canvas -->
+        <canvas id="frameCanvas"></canvas>
+      </section>
+
+      <!-- Idea / 擴充想法 -->
+      <section class="card" id="section-idea">
+        <div class="card-header">
+          <div class="card-title">
+            <span class="icon">💡</span>
+            <span>未來可以怎麼擴充 OOOOO？</span>
+          </div>
+          <div class="pill-label">
+            <span class="dot-tiny"></span>
+            <span>On-Device Lab</span>
+          </div>
+        </div>
+        <p class="card-desc">
+          這個網頁現在只示範「光線亮度 → 活動建議」，
+          但同樣的 on-device 流程，可以擴充更多 AI 功能，而且全部可以離線運作。
+        </p>
+
+        <button class="btn btn-full btn-small" id="btnIdea">
+          <span class="btn-icon">🎲</span>
+          給我一個新的 OOOOO 功能點子
+        </button>
+
+        <div class="idea-display" id="ideaDisplay">
+          <div class="idea-label">IDEA · EXAMPLE</div>
+          <div class="idea-main" id="ideaMain">
+            「光線 + 使用時間」一起分析：太亮又太晚，就提醒你該休息眼睛；太暗又打遊戲，就建議開燈避免傷眼。
+          </div>
+          <div class="idea-tag" id="ideaTag">#數位健康 #OnDeviceAI #LightCoach</div>
+          <div class="idea-glow"></div>
+        </div>
+
+        <div class="hint">
+          想做真正的模型時，只要把現在這個亮度規則函式換成
+          <span class="badge-mini">
+            <span class="mini-dot"></span> WebGPU / WebAssembly / TensorFlow.js
+          </span>
+          等等就可以。
+        </div>
+      </section>
+    </main>
+
+    <!-- Bottom Nav -->
+    <nav class="bottom-nav">
+      <div class="bottom-nav-inner">
+        <button class="nav-btn active" data-target="section-main">
+          <div class="nav-icon">🔆</div>
+          <div>光線建議</div>
+        </button>
+        <button class="nav-btn" data-target="section-idea">
+          <div class="nav-icon">🧪</div>
+          <div>擴充點子</div>
+        </button>
+      </div>
+    </nav>
+  </div>
+
+  <script>
+    // ===== 模型載入狀態（模擬 On-Device 模型初始化） =====
+    const modelStatusEl = document.getElementById("modelStatus");
+    const modelDotEl = document.getElementById("modelDot");
+    const offlineHintEl = document.getElementById("offlineHint");
+
+    function markModelLoaded() {
+      modelDotEl.classList.add("ok");
+      modelStatusEl.querySelector(".status-text").textContent = "模型已載入 (On-Device)";
+      offlineHintEl.classList.add("ok");
+    }
+
+    // 模擬載入時間：之後可改成真正模型載入完成後呼叫
+    setTimeout(markModelLoaded, 1200);
+
+    // ===== 相機 + 亮度小模型 =====
+    const cameraEl = document.getElementById("camera");
+    const btnInitCamera = document.getElementById("btnInitCamera");
+    const btnAnalyze = document.getElementById("btnAnalyze");
+    const cameraHintEl = document.getElementById("cameraHint");
+    const cameraEnvEl = document.getElementById("cameraEnv");
+    const camBulbEl = document.getElementById("camBulb");
+    const camLabelTextEl = document.getElementById("camLabelText");
+    const frameCanvas = document.getElementById("frameCanvas");
+
+    const lightIconEl = document.getElementById("lightIcon");
+    const lightTitleEl = document.getElementById("lightTitle");
+    const lightSubEl = document.getElementById("lightSub");
+    const lightMetaEl = document.getElementById("lightMeta");
+
+    let cameraStream = null;
+
+    async function initCamera() {
+      try {
+        cameraStream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: "environment", // 優先用後鏡頭量環境
+            width: { ideal: 640 },
+            height: { ideal: 480 }
+          },
+          audio: false
         });
+        cameraEl.srcObject = cameraStream;
+        camBulbEl.style.background = "#22c55e";
+        camBulbEl.style.boxShadow = "0 0 8px rgba(34, 197, 94, 0.9)";
+        camLabelTextEl.textContent = "相機已啟動";
+        cameraHintEl.textContent = "把手機放在你平常使用的位置，讓鏡頭看到環境光線。";
+      } catch (err) {
+        console.error(err);
+        camBulbEl.style.background = "#ef4444";
+        camBulbEl.style.boxShadow = "0 0 8px rgba(239, 68, 68, 0.9)";
+        camLabelTextEl.textContent = "無法啟動相機";
+        cameraHintEl.textContent = "請確認已允許相機權限，或在瀏覽器設定中開啟鏡頭。";
+      }
+    }
 
-        // 2. 核心初始化函式
-        async function initAI() {
-            // A. 載入 COCO-SSD 模型
-            // 此模型會自動下載並存入瀏覽器快取
-            model = await cocoSsd.load();
-            loadingText.innerText = "模型載入完成，正在啟動相機...";
+    function computeAverageBrightness(imageData) {
+      const data = imageData.data;
+      let sum = 0;
+      const step = 4 * 8; // 間隔取樣，加速運算
+      let count = 0;
 
-            // B. 啟動相機
-            await setupCamera();
-            
-            // C. 調整 Canvas 尺寸並開始偵測
-            startScreen.style.display = 'none'; // 隱藏啟動畫面
-            statusText.innerText = "AI 運作中 - On Device";
-            
-            resizeCanvas();
-            predictLoop();
+      for (let i = 0; i < data.length; i += step) {
+        const r = data[i];
+        const g = data[i + 1];
+        const b = data[i + 2];
+        const brightness = (r + g + b) / 3;
+        sum += brightness;
+        count++;
+      }
+      return count ? sum / count : 0;
+    }
 
-            // 監聽視窗大小改變 (旋轉手機時)
-            window.addEventListener('resize', resizeCanvas);
-        }
+    // 核心：在裝置上根據亮度做「行為建議」
+    function runOnDeviceLightModel(avgBrightness) {
+      // 0 ~ 255
+      let suggestion = {
+        icon: "🤔",
+        title: "亮度資訊不足",
+        sub: "再讓鏡頭看一下環境，或稍微移動一下手機。",
+        meta: `平均亮度：約 ${avgBrightness.toFixed(0)}`
+      };
 
-        // 3. 設定相機
-        async function setupCamera() {
-            const constraints = {
-                audio: false,
-                video: {
-                    facingMode: 'environment', // 優先使用後鏡頭
-                    // 為了效能，不要設定太高的解析度，640x480 對手機辨識來說足夠
-                    width: { ideal: 640 }, 
-                    height: { ideal: 480 }
-                }
-            };
+      if (avgBrightness >= 180) {
+        suggestion.icon = "📚";
+        suggestion.title = "超適合讀書 / 專心工作";
+        suggestion.sub = "環境非常明亮，對專注與清醒很加分。記得避免螢幕太亮直射眼睛。";
+      } else if (avgBrightness >= 130 && avgBrightness < 180) {
+        suggestion.icon = "🎮";
+        suggestion.title = "很適合玩遊戲 / 看影片";
+        suggestion.sub = "光線偏中等，螢幕不會太刺眼，也不至於太暗，可以當作 Chill 模式。";
+      } else if (avgBrightness >= 90 && avgBrightness < 130) {
+        suggestion.icon = "☕";
+        suggestion.title = "微暗環境 · 適合放鬆 / 滑手機";
+        suggestion.sub = "亮度有點偏暗，長時間讀書容易想睡，可以當放鬆、聽歌、滑 IG 的空間。";
+      } else if (avgBrightness >= 50 && avgBrightness < 90) {
+        suggestion.icon = "😴";
+        suggestion.title = "偏暗 · 很適合準備睡覺";
+        suggestion.sub = "環境已經很暗了，大腦會慢慢進入想睡狀態。可以關螢幕休息一下。";
+      } else {
+        suggestion.icon = "🌙";
+        suggestion.title = "幾乎全暗 · 深夜睡眠模式";
+        suggestion.sub = "這個亮度再盯螢幕很傷眼。建議直接躺平睡覺，明天精神會更好。";
+      }
 
-            const stream = await navigator.mediaDevices.getUserMedia(constraints);
-            video.srcObject = stream;
+      suggestion.meta = `平均亮度：約 ${avgBrightness.toFixed(0)}（0 暗 ~ 255 亮）`;
+      return suggestion;
+    }
 
-            return new Promise((resolve) => {
-                video.onloadedmetadata = () => {
-                    resolve(video);
-                };
-            });
-        }
+    function analyzeLight() {
+      if (!cameraEl.videoWidth || !cameraEl.videoHeight) {
+        lightIconEl.textContent = "⚠️";
+        lightTitleEl.textContent = "尚未取得畫面";
+        lightSubEl.textContent = "請先啟動相機，等畫面出現後再按一次分析。";
+        lightMetaEl.textContent = "平均亮度：—";
+        return;
+      }
 
-        // 4. 調整 Canvas 尺寸以匹配 Video 顯示大小
-        function resizeCanvas() {
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-            
-            // 因為 CSS 用 object-fit: cover 強制填滿，
-            // 這裡我們讓 Canvas 的解析度跟隨影片原始解析度，
-            // CSS 會負責把 Canvas 拉伸到跟 Video 一樣大。
-        }
+      const sampleWidth = 120;
+      const sampleHeight = 90;
 
-        // 5. 預測循環 (Loop)
-        async function predictLoop() {
-            if (!model) return;
+      frameCanvas.width = sampleWidth;
+      frameCanvas.height = sampleHeight;
 
-            // 進行預測
-            // detect 參數：影像來源, maxNumBoxes, minScore
-            const predictions = await model.detect(video, 20, 0.5);
+      const ctx = frameCanvas.getContext("2d");
+      ctx.drawImage(
+        cameraEl,
+        (cameraEl.videoWidth - sampleWidth) / 2,
+        (cameraEl.videoHeight - sampleHeight) / 2,
+        sampleWidth,
+        sampleHeight,
+        0,
+        0,
+        sampleWidth,
+        sampleHeight
+      );
 
-            // 繪製結果
-            drawPredictions(predictions);
+      const imageData = ctx.getImageData(0, 0, sampleWidth, sampleHeight);
+      const avgBrightness = computeAverageBrightness(imageData);
 
-            // 使用 requestAnimationFrame 達到最順暢的 FPS
-            requestAnimationFrame(predictLoop);
-        }
+      const suggestion = runOnDeviceLightModel(avgBrightness);
 
-        // 6. 繪製方框與標籤
-        function drawPredictions(predictions) {
-            // 清空畫布
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
+      lightIconEl.textContent = suggestion.icon;
+      lightTitleEl.textContent = suggestion.title;
+      lightSubEl.textContent = suggestion.sub;
+      lightMetaEl.textContent = suggestion.meta;
 
-            const font = "16px sans-serif";
-            ctx.font = font;
-            ctx.textBaseline = "top";
+      // 顯示簡單的「光線狀態」
+      let envText = "光線偵測：";
+      if (avgBrightness >= 180) envText += "非常明亮";
+      else if (avgBrightness >= 130) envText += "中等偏亮";
+      else if (avgBrightness >= 90) envText += "偏暗";
+      else envText += "很暗";
+      cameraEnvEl.textContent = envText;
+    }
 
-            predictions.forEach(prediction => {
-                const [x, y, width, height] = prediction['bbox'];
-                const text = prediction['class'];
-                const score = Math.round(prediction['score'] * 100) + '%';
+    btnInitCamera.addEventListener("click", initCamera);
+    btnAnalyze.addEventListener("click", analyzeLight);
 
-                // 畫框框
-                ctx.strokeStyle = "#00FFFF";
-                ctx.lineWidth = 4;
-                ctx.strokeRect(x, y, width, height);
+    // ===== Bottom Nav（如果之後要多頁） =====
+    const navButtons = document.querySelectorAll(".nav-btn");
+    navButtons.forEach((btn) => {
+      btn.addEventListener("click", () => {
+        navButtons.forEach(b => b.classList.remove("active"));
+        btn.classList.add("active");
 
-                // 畫背景標籤 (半透明黑底)
-                const textWidth = ctx.measureText(text + " " + score).width;
-                const textHeight = 16; // 根據字體大小估算
-                ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
-                ctx.fillRect(x, y, textWidth + 10, textHeight + 10);
+        const targetId = btn.getAttribute("data-target");
+        document.querySelectorAll("section.card").forEach(sec => {
+          sec.style.display = sec.id === targetId ? "block" : "block"; // 目前只有兩個 section，都保留顯示
+        });
+      });
+    });
 
-                // 畫文字
-                ctx.fillStyle = "#FFFFFF";
-                ctx.fillText(text + " - " + score, x + 5, y + 5);
-            });
-        }
-    </script>
+    // ===== Idea generator：產生新的 OOOOO 功能想法 =====
+    const btnIdea = document.getElementById("btnIdea");
+    const ideaMainEl = document.getElementById("ideaMain");
+    const ideaTagEl = document.getElementById("ideaTag");
+
+    const ideas = [
+      {
+        text: "結合「光線 + 麥克風音量」：偵測你是不是在吵雜環境讀書，如果太吵就建議戴耳機或換地方。",
+        tag: "#專注模式 #環境噪音 #LightCoach"
+      },
+      {
+        text: "做一個「24 小時光線日記」：全天被動記錄亮度變化，幫你分析到底哪一段時間最適合讀書。",
+        tag: "#光線日記 #學習黃金時段"
+      },
+      {
+        text: "晚上自動切換「護眼模式」：只要偵測到環境很暗卻螢幕很亮，就提醒你調低亮度或開燈。",
+        tag: "#護眼 #夜貓子守護程式"
+      },
+      {
+        text: "把亮度資料做成「生活儀表板」：白天太暗、晚上太亮都會被標記出來，幫你調整作息。",
+        tag: "#生活儀表板 #健康光線"
+      },
+      {
+        text: "結合時間表：在你排好的讀書時段，如果亮度不理想，就提醒你調整燈光，避免分心或想睡。",
+        tag: "#讀書計畫 #LightCoach"
+      }
+    ];
+
+    btnIdea.addEventListener("click", () => {
+      const idx = Math.floor(Math.random() * ideas.length);
+      ideaMainEl.textContent = ideas[idx].text;
+      ideaTagEl.textContent = ideas[idx].tag;
+    });
+  </script>
 </body>
 </html>
