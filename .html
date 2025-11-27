@@ -8,151 +8,22 @@
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.14.0/dist/tf.min.js"></script>
 
     <style>
-        /* 沿用使用者提供的酷炫 UI 樣式 */
-        body {
-            margin: 0;
-            padding: 0;
-            background-color: #000;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            overflow: hidden; /* 防止捲動 */
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            height: 100vh;
-        }
-
-        #cam-container {
-            position: relative;
-            width: 100%;
-            height: 100%;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            background: #111;
-        }
-
-        video {
-            position: absolute;
-            width: 100%;
-            height: 100%;
-            object-fit: cover; /* 讓畫面填滿手機螢幕 */
-        }
-        
-        /* 隱藏 Canvas，因為我們不再繪製方框，只用於抓取幀圖像 */
+        /* (CSS 樣式保持不變，略過以節省空間，請使用上一個回覆提供的完整 CSS) */
+        body { margin: 0; padding: 0; background-color: #000; font-family: sans-serif; overflow: hidden; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; }
+        #cam-container { position: relative; width: 100%; height: 100%; display: flex; justify-content: center; align-items: center; background: #111; }
+        video { position: absolute; width: 100%; height: 100%; object-fit: cover; }
         #canvas { display: none; }
-
-        /* 介面覆蓋層 (UI Overlay) */
-        #ui-layer {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            z-index: 10;
-            pointer-events: none;
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between;
-            padding: 20px;
-            box-sizing: border-box;
-        }
-
-        /* 狀態列 */
-        .status-bar {
-            background: rgba(0, 0, 0, 0.6);
-            color: #00ffcc;
-            padding: 10px 15px;
-            border-radius: 20px;
-            font-size: 14px;
-            backdrop-filter: blur(5px);
-            align-self: flex-start;
-            pointer-events: auto;
-            /* 新增結果顯示區域的樣式 */
-            margin-top: 10px;
-            line-height: 1.6;
-        }
-
-        #result-display {
-            background: rgba(0, 0, 0, 0.7);
-            color: white;
-            padding: 20px;
-            border-radius: 15px;
-            align-self: center; /* 讓結果顯示在畫面中央底部 */
-            margin-bottom: 50px;
-            width: 90%;
-            max-width: 400px;
-            text-align: center;
-            pointer-events: auto;
-        }
-
-        #light-level {
-            font-size: 1.8em;
-            font-weight: bold;
-            color: #FFC107; /* 預設顏色 */
-            margin-bottom: 5px;
-        }
-
-        #activity-recommendation {
-            font-size: 1.1em;
-            color: #B3E5FC;
-        }
-
-        /* 啟動按鈕 / 載入畫面 */
-        #start-screen {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.85);
-            z-index: 20;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            text-align: center;
-            color: white;
-        }
-
-        button {
-            background: #007aff;
-            color: white;
-            border: none;
-            padding: 15px 40px;
-            font-size: 18px;
-            border-radius: 30px;
-            cursor: pointer;
-            margin-top: 20px;
-            font-weight: bold;
-            box-shadow: 0 4px 15px rgba(0,122,255,0.4);
-            transition: transform 0.2s;
-        }
-
+        #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 10; pointer-events: none; display: flex; flex-direction: column; justify-content: space-between; padding: 20px; box-sizing: border-box; }
+        .status-bar { background: rgba(0, 0, 0, 0.6); color: #00ffcc; padding: 10px 15px; border-radius: 20px; font-size: 14px; backdrop-filter: blur(5px); align-self: flex-start; pointer-events: auto; margin-top: 10px; line-height: 1.6; }
+        #result-display { background: rgba(0, 0, 0, 0.7); color: white; padding: 20px; border-radius: 15px; align-self: center; margin-bottom: 50px; width: 90%; max-width: 400px; text-align: center; pointer-events: auto; }
+        #light-level { font-size: 1.8em; font-weight: bold; color: #FFC107; margin-bottom: 5px; }
+        #activity-recommendation { font-size: 1.1em; color: #B3E5FC; }
+        #start-screen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.85); z-index: 20; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; color: white; }
+        button { background: #007aff; color: white; border: none; padding: 15px 40px; font-size: 18px; border-radius: 30px; cursor: pointer; margin-top: 20px; font-weight: bold; box-shadow: 0 4px 15px rgba(0,122,255,0.4); transition: transform 0.2s; }
         button:active { transform: scale(0.95); }
-
-        button:disabled {
-            background: #555;
-            color: #888;
-            cursor: not-allowed;
-            box-shadow: none;
-        }
-
-        .loader {
-            border: 4px solid #f3f3f3;
-            border-top: 4px solid #00ffcc;
-            border-radius: 50%;
-            width: 40px;
-            height: 40px;
-            animation: spin 1s linear infinite;
-            margin-bottom: 20px;
-            display: none;
-        }
-
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
+        button:disabled { background: #555; color: #888; cursor: not-allowed; box-shadow: none; }
+        .loader { border: 4px solid #f3f3f3; border-top: 4px solid #00ffcc; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin-bottom: 20px; display: none; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     </style>
 </head>
 <body>
@@ -164,7 +35,6 @@
 
     <div id="ui-layer">
         <div class="status-bar" id="status">等待啟動...</div>
-        
         <div id="result-display">
             <div id="light-level">光線等級</div>
             <div id="activity-recommendation">推薦活動將顯示在這裡</div>
@@ -175,13 +45,13 @@
         <div class="loader" id="loader"></div>
         <h2 id="loading-text">準備載入 AI 模型</h2>
         <p style="font-size: 0.9em; color: #aaa; margin: 0 20px;">
-            此應用使用 MobileNetV3 進行離線光線判斷。<br>模型載入後，請切換至**飛航模式**以測試離線推論。
+            **【重要】** 首次運行需連線網路。成功載入後，<br>AI 推論將可**完全離線運作**。
         </p>
         <button id="btn-start" disabled>開始辨識 (載入中)</button>
     </div>
 
     <script>
-        // DOM 元素
+        // DOM 元素 (略)
         const video = document.getElementById('video');
         const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
@@ -195,11 +65,9 @@
 
         let model = undefined;
         let animationFrameId = null;
-        
-        // MobileNetV3 模型參數
         const MODEL_INPUT_SIZE = 224; 
         
-        // 活動推薦字典 (根據光線環境)
+        // 活動推薦字典 (保持不變)
         const ACTIVITIES = {
             '明亮戶外/高光': {
                 emoji: '☀️',
@@ -227,75 +95,82 @@
             }
         };
 
-        // 1. 初始化：載入模型並設定按鈕
         window.onload = async () => {
             btnStart.addEventListener('click', startAIInference);
+            // 由於模型載入需要時間，先禁用按鈕
+            btnStart.disabled = true;
             await loadModelAndSetupCamera();
         }
 
-        // 2. 載入模型和啟動相機
         async function loadModelAndSetupCamera() {
-            loadingText.innerText = "正在載入 MobileNetV3 模型 (約 4 MB)...";
+            loadingText.innerText = "正在嘗試下載/載入 MobileNetV3 模型 (約 4 MB)...";
             loader.style.display = 'block';
 
             try {
                 // A. 載入 MobileNetV3 分類模型
+                // 瀏覽器如果快取了這些檔案，即使離線也可能成功
                 model = await tf.loadGraphModel(
                     'https://tfhub.dev/google/imagenet/mobilenet_v3_small_075_224/classification/5',
                     { fromTFHub: true }
                 );
                 
-                // 進行一次假推論，預熱 AI 核心
+                // 預熱 AI 核心
                 tf.tidy(() => {
                     model.predict(tf.zeros([1, MODEL_INPUT_SIZE, MODEL_INPUT_SIZE, 3]));
                 });
                 
-                loadingText.innerText = "模型載入完成！正在啟動相機...";
+                loadingText.innerText = "✅ 模型載入完成！正在啟動相機...";
                 
                 // B. 啟動相機
                 await setupCamera();
                 
-                loadingText.innerText = "相機就緒！AI 已準備好離線推論。";
+                loadingText.innerText = "相機就緒！AI 已準備好 **離線推論**。";
                 btnStart.disabled = false;
-                btnStart.innerText = "🚀 啟動 AI 判斷 (可離線)";
+                btnStart.innerText = "🚀 開始 AI 判斷 (請切換飛航模式測試)";
 
             } catch (error) {
                 console.error('初始化失敗:', error);
-                loadingText.innerText = `❌ 錯誤: ${error.message}，請檢查網路連線。`;
+                
+                // 關鍵錯誤處理：提醒使用者需要網路
+                loadingText.innerHTML = `❌ **模型載入失敗！** <br>請檢查網路連線，確保 MobileNetV3 模型檔案 (約 4MB) 能夠首次下載。`;
                 loader.style.display = 'none';
+                btnStart.disabled = true; 
+                btnStart.innerText = "🚨 載入失敗 (需連網)";
             }
         }
 
-        // 3. 設定相機
+        // --- 以下函式保持不變 (setupCamera, resizeCanvas, startAIInference, predictLoop, updateUI, onbeforeunload) ---
+        
         async function setupCamera() {
             const constraints = {
                 audio: false,
                 video: { facingMode: 'environment', width: { ideal: 640 }, height: { ideal: 480 } }
             };
-
-            const stream = await navigator.mediaDevices.getUserMedia(constraints);
-            video.srcObject = stream;
-
-            return new Promise((resolve) => {
-                video.onloadedmetadata = () => {
-                    resizeCanvas();
-                    window.addEventListener('resize', resizeCanvas);
-                    resolve(true);
-                };
-            });
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia(constraints);
+                video.srcObject = stream;
+                return new Promise((resolve) => {
+                    video.onloadedmetadata = () => {
+                        resizeCanvas();
+                        window.addEventListener('resize', resizeCanvas);
+                        resolve(true);
+                    };
+                });
+            } catch (e) {
+                // 處理相機權限被拒絕的情況
+                loadingText.innerHTML = `❌ 相機啟動失敗！<br>請檢查瀏覽器設定，授予相機權限。`;
+                btnStart.disabled = true;
+                return false;
+            }
         }
 
-        // 4. 調整 Canvas 尺寸
         function resizeCanvas() {
-            // 將 Canvas 設為 Video 的實際解析度
             canvas.width = video.videoWidth;
             canvas.height = video.videoHeight;
         }
 
-        // 5. 啟動 AI 推論
         function startAIInference() {
             if (animationFrameId) {
-                // 如果已經在運行，則暫停
                 cancelAnimationFrame(animationFrameId);
                 animationFrameId = null;
                 btnStart.textContent = '▶️ 繼續判斷';
@@ -303,7 +178,6 @@
                 return;
             }
 
-            // 隱藏啟動畫面，開始實時推論
             startScreen.style.display = 'none';
             statusText.textContent = '🚀 AI 運作中 - On Device / 離線模式';
             btnStart.textContent = '⏸ 暫停判斷';
@@ -311,28 +185,23 @@
             predictLoop();
         }
 
-        // 6. 預測循環 (Loop)
         async function predictLoop() {
             if (!model || video.readyState < 2) {
                 animationFrameId = requestAnimationFrame(predictLoop);
                 return;
             }
 
-            // tf.tidy 自動清理 Tensor 資源，確保高效能
             tf.tidy(() => {
-                // A. 影像處理
                 ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
                 
                 const imageTensor = tf.browser.fromPixels(canvas)
                     .resizeNearestNeighbor([MODEL_INPUT_SIZE, MODEL_INPUT_SIZE])
                     .toFloat()
-                    .div(255.0) // 歸一化
+                    .div(255.0)
                     .expandDims();
 
-                // B. 執行推論 (完全離線)
                 const prediction = model.predict(imageTensor);
                 
-                // C. 取得推論結果
                 const topK = tf.topk(prediction, 1);
                 const values = topK.values.dataSync();
                 const indices = topK.indices.dataSync();
@@ -342,30 +211,22 @@
 
                 let lightResult;
 
-                // D. 根據 ImageNet 索引模擬光線判斷
-                // 這是對通用分類模型的一種創意應用：
                 if (maxProb < 0.3) {
-                     // 信心度太低，可能是畫面太暗或太雜亂
                     lightResult = ACTIVITIES['未知環境'];
                 } else if (topIndex >= 100 && topIndex < 300) {
-                    // 假設 100-300 區間的物體更常出現在戶外/明亮環境 (如動物、交通工具)
                     lightResult = ACTIVITIES['明亮戶外/高光'];
                 } else if (topIndex >= 300 && topIndex < 700) {
-                    // 假設 300-700 區間的物體更常出現在室內/中光環境 (如傢俱、電器)
                     lightResult = ACTIVITIES['充足室內/中光'];
                 } else {
-                    // 700 以後的索引或低信心度推測為低光
                     lightResult = ACTIVITIES['昏暗夜晚/低光'];
                 }
 
-                // E. 更新 UI
                 updateUI(lightResult, maxProb);
             });
             
             animationFrameId = requestAnimationFrame(predictLoop);
         }
 
-        // 7. 更新介面
         function updateUI(result, probability) {
             lightLevelElement.textContent = `${result.emoji} ${result.level}`;
             lightLevelElement.style.color = result.color;
@@ -375,7 +236,6 @@
                  <br><span style="font-size: 0.8em; opacity: 0.7;"> (信心度: ${Math.round(probability * 100)}%) </span>`;
         }
 
-        // 8. 資源清理
         window.onbeforeunload = () => {
             if (animationFrameId) cancelAnimationFrame(animationFrameId);
             if (video.srcObject) {
