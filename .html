@@ -8,9 +8,9 @@
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.14.0/dist/tf.min.js"></script>
 
     <style>
-        /* 基礎樣式和佈局 */
+        /* 基礎樣式和佈局 (保持您原有的全屏風格) */
         body { 
-            margin: 0; padding: 0; background-color: #000; font-family: sans-serif; 
+            margin: 0; padding: 0; background-color: #000; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
             overflow: hidden; display: flex; flex-direction: column; align-items: center; 
             justify-content: center; height: 100vh;
         }
@@ -21,7 +21,8 @@
         video { 
             position: absolute; width: 100%; height: 100%; object-fit: cover; 
         }
-        #canvas { display: none; } /* Canvas 用於內部處理，不顯示 */
+        /* 隱藏 Canvas，因為我們不再繪製方框，只用於抓取幀圖像 */
+        #canvas { display: none; } 
 
         /* 介面覆蓋層 */
         #ui-layer { 
@@ -34,6 +35,8 @@
             border-radius: 20px; font-size: 14px; backdrop-filter: blur(5px); 
             align-self: flex-start; pointer-events: auto; margin-top: 10px; line-height: 1.6; 
         }
+        
+        /* 新增底部結果顯示區塊 (替代物件辨識的方框) */
         #result-display { 
             background: rgba(0, 0, 0, 0.7); color: white; padding: 20px; border-radius: 15px; 
             align-self: center; margin-bottom: 50px; width: 90%; max-width: 400px; 
@@ -45,7 +48,7 @@
         #activity-recommendation { 
             font-size: 1.1em; color: #B3E5FC; 
         }
-        
+
         /* 啟動畫面 */
         #start-screen { 
             position: absolute; top: 0; left: 0; width: 100%; height: 100%; 
@@ -79,6 +82,7 @@
 
     <div id="ui-layer">
         <div class="status-bar" id="status">等待啟動...</div>
+        
         <div id="result-display">
             <div id="light-level">光線等級</div>
             <div id="activity-recommendation">推薦活動將顯示在這裡</div>
@@ -115,21 +119,23 @@
         
         // 活動推薦字典
         const ACTIVITIES = {
-            '明亮戶外/高光': { emoji: '☀️', level: '明亮戶外/高光', recommend: '慢跑、騎單車、戶外野餐、拍攝風景照', color: '#FFD700' },
-            '充足室內/中光': { emoji: '💡', level: '充足室內/中光', recommend: '閱讀書籍、規劃清單、學習新技能、進行視訊會議', color: '#00ffcc' },
-            '昏暗夜晚/低光': { emoji: '🌙', level: '昏暗夜晚/低光', recommend: '冥想放鬆、聽輕音樂、撰寫日記、準備就寢', color: '#8A2BE2' },
+            '明亮戶外/高光': { emoji: '☀️', level: '明亮戶外/高光', recommend: '慢跑、騎單車、戶外野餐', color: '#FFD700' },
+            '充足室內/中光': { emoji: '💡', level: '充足室內/中光', recommend: '閱讀書籍、規劃清單、學習新技能', color: '#00ffcc' },
+            '昏暗夜晚/低光': { emoji: '🌙', level: '昏暗夜晚/低光', recommend: '冥想放鬆、聽輕音樂、準備就寢', color: '#8A2BE2' },
             '未知環境': { emoji: '🤔', level: '無法判斷', recommend: '請調整鏡頭角度，對準環境光線', color: '#E91E63' }
         };
 
         window.onload = async () => {
-            // **【修復空白頁問題】**：檢查 TensorFlow.js 是否已載入
+            // **【針對空白頁檢查 1】**：檢查 TensorFlow.js 是否已載入 (防 CDN 失敗)
             if (typeof tf === 'undefined') {
                 loadingText.textContent = "❌ 錯誤：TensorFlow.js 核心函式庫載入失敗！";
                 infoText.innerHTML = "請檢查您的**網路連線**或您的**手機瀏覽器是否支援 WebGL**。";
-                return; // 終止腳本執行，避免 ReferenceError 導致空白
+                return; 
             }
 
             btnStart.addEventListener('click', startAIInference);
+            // 由於模型載入需要時間，先禁用按鈕
+            btnStart.disabled = true;
             await loadModelAndSetupCamera();
         }
 
@@ -145,6 +151,7 @@
                     { fromTFHub: true }
                 );
                 
+                // 預熱 AI 核心
                 tf.tidy(() => { model.predict(tf.zeros([1, MODEL_INPUT_SIZE, MODEL_INPUT_SIZE, 3])); });
                 
                 loadingText.textContent = "✅ 模型載入完成！正在啟動相機...";
@@ -152,7 +159,7 @@
                 
                 // B. 啟動相機
                 const cameraSuccess = await setupCamera();
-                if (!cameraSuccess) return; // 相機失敗則終止
+                if (!cameraSuccess) return; 
 
                 loadingText.textContent = "✅ 相機就緒！";
                 infoText.innerHTML = "AI 已準備好 **離線推論**。請點擊開始，即可切換飛航模式。";
@@ -162,9 +169,9 @@
             } catch (error) {
                 console.error('模型載入或初始化失敗:', error);
                 
-                // 更清晰的錯誤提示
+                // **【針對空白頁檢查 2】**：更明確的網路錯誤提示
                 loadingText.textContent = `❌ 模型載入失敗！`;
-                infoText.innerHTML = `請檢查您的**網路連線**，模型檔案可能下載失敗。錯誤詳情: ${error.message.substring(0, 60)}...`;
+                infoText.innerHTML = `請檢查您的**網路連線**，確保模型檔案能夠首次下載。`;
                 loader.style.display = 'none';
                 btnStart.disabled = true; 
                 btnStart.innerText = "🚨 載入失敗 (需連網)";
@@ -187,7 +194,7 @@
                     };
                 });
             } catch (e) {
-                // **【修復空白頁問題】**：相機權限被拒絕的明確提示
+                // **【針對空白頁檢查 3】**：相機權限被拒絕的明確提示
                 loadingText.textContent = `❌ 相機權限被拒絕！`;
                 infoText.innerHTML = `請允許瀏覽器使用相機權限才能進行光線判定。`;
                 btnStart.disabled = true;
@@ -196,12 +203,14 @@
         }
 
         function resizeCanvas() {
+            // 讓 Canvas 尺寸匹配影片的實際解析度
             canvas.width = video.videoWidth;
             canvas.height = video.videoHeight;
         }
 
         function startAIInference() {
             if (animationFrameId) {
+                // 暫停邏輯
                 cancelAnimationFrame(animationFrameId);
                 animationFrameId = null;
                 btnStart.textContent = '▶️ 繼續判斷';
@@ -209,6 +218,7 @@
                 return;
             }
 
+            // 啟動邏輯
             startScreen.style.display = 'none';
             statusText.textContent = '🚀 AI 運作中 - On Device / 離線模式';
             btnStart.textContent = '⏸ 暫停判斷';
@@ -222,6 +232,7 @@
                 return;
             }
 
+            // **核心離線推論**
             tf.tidy(() => {
                 ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
                 
@@ -242,7 +253,7 @@
 
                 let lightResult;
 
-                // 根據 MobileNetV3 索引模擬光線判斷
+                // 根據 MobileNetV3 索引模擬光線判斷邏輯
                 if (maxProb < 0.3) {
                     lightResult = ACTIVITIES['未知環境'];
                 } else if (topIndex >= 100 && topIndex < 300) {
@@ -268,6 +279,7 @@
                  <br><span style="font-size: 0.8em; opacity: 0.7;"> (信心度: ${Math.round(probability * 100)}%) </span>`;
         }
 
+        // 資源清理
         window.onbeforeunload = () => {
             if (animationFrameId) cancelAnimationFrame(animationFrameId);
             if (video.srcObject) {
