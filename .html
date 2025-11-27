@@ -9,39 +9,42 @@
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/movenet@1.0.0/dist/movenet.min.js"></script>
 
     <style>
-        /* 基礎樣式和佈局 (保持全屏風格) */
-        body { 
-            margin: 0; padding: 0; background-color: #000; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
-            overflow: hidden; display: flex; flex-direction: column; align-items: center; 
-            justify-content: center; height: 100vh;
-        }
-        #cam-container { 
-            position: relative; width: 100%; height: 100%; display: flex; 
-            justify-content: center; align-items: center; background: #111; 
-        }
-        video { 
-            position: absolute; width: 100%; height: 100%; object-fit: cover; 
-            transform: scaleX(-1); /* 鏡像翻轉 */
-        }
-        #canvas {
-            position: absolute; width: 100%; height: 100%; object-fit: cover;
-            transform: scaleX(-1); 
-            z-index: 5;
+        /* 保持您原有的所有 CSS 樣式 */
+        body {
+            margin: 0; padding: 0; background-color: #000;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            overflow: hidden; 
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            height: 100vh;
         }
 
-        /* 介面覆蓋層 */
-        #ui-layer { 
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%; 
-            z-index: 10; pointer-events: none; display: flex; flex-direction: column; 
-            justify-content: space-between; padding: 20px; box-sizing: border-box; 
+        /* 視訊與畫布的容器 */
+        #cam-container {
+            position: relative; width: 100%; height: 100%; display: flex; 
+            justify-content: center; align-items: center; background: #111;
         }
-        .status-bar { 
-            background: rgba(0, 0, 0, 0.6); color: #00ffcc; padding: 10px 15px; 
-            border-radius: 20px; font-size: 14px; backdrop-filter: blur(5px); 
-            align-self: flex-start; pointer-events: auto; margin-top: 10px; line-height: 1.6; 
+
+        /* 影像與 Canvas 重疊 */
+        video, canvas {
+            position: absolute; width: 100%; height: 100%; object-fit: cover;
+            transform: scaleX(-1); /* 鏡像翻轉 */
         }
         
-        /* 遊戲提示和分數區 */
+        /* 介面覆蓋層 (UI Overlay) */
+        #ui-layer {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 10; pointer-events: none; display: flex; flex-direction: column;
+            justify-content: space-between; padding: 20px; box-sizing: border-box;
+        }
+
+        /* 狀態列 */
+        .status-bar {
+            background: rgba(0, 0, 0, 0.6); color: #00ffcc; padding: 10px 15px;
+            border-radius: 20px; font-size: 14px; backdrop-filter: blur(5px);
+            align-self: flex-start; pointer-events: auto;
+        }
+        
+        /* 新增：遊戲信息區塊 (替代原有的底部空白) */
         #game-info { 
             background: rgba(0, 0, 0, 0.7); color: white; padding: 20px; border-radius: 15px; 
             align-self: center; margin-bottom: 50px; width: 90%; max-width: 400px; 
@@ -55,30 +58,30 @@
             font-size: 1.2em; color: #B3E5FC; 
         }
 
-        /* 啟動畫面 */
-        #start-screen { 
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%; 
-            /* 讓背景略微透明，以防全黑被誤認為全白 */
-            background: rgba(0, 0, 0, 0.95); 
-            z-index: 20; display: flex; 
-            flex-direction: column; justify-content: center; align-items: center; 
-            text-align: center; color: white; 
+
+        /* 啟動按鈕 / 載入畫面 */
+        #start-screen {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.95); /* 略微調暗，確保文字清晰 */
+            z-index: 20; display: flex; flex-direction: column; justify-content: center;
+            align-items: center; text-align: center; color: white;
         }
-        button { 
-            background: #007aff; color: white; border: none; padding: 15px 40px; 
-            font-size: 18px; border-radius: 30px; cursor: pointer; margin-top: 20px; 
-            font-weight: bold; box-shadow: 0 4px 15px rgba(0,122,255,0.4); transition: transform 0.2s; 
+
+        button {
+            background: #007aff; color: white; border: none; padding: 15px 40px;
+            font-size: 18px; border-radius: 30px; cursor: pointer; margin-top: 20px;
+            font-weight: bold; box-shadow: 0 4px 15px rgba(0,122,255,0.4); transition: transform 0.2s;
         }
         button:active { transform: scale(0.95); }
         button:disabled { background: #555; color: #888; cursor: not-allowed; box-shadow: none; }
-        .loader { 
-            border: 4px solid #f3f3f3; border-top: 4px solid #00ffcc; border-radius: 50%; 
-            width: 40px; height: 40px; animation: spin 1s linear infinite; margin-bottom: 20px; 
-            display: none; 
+
+        .loader {
+            border: 4px solid #f3f3f3; border-top: 4px solid #00ffcc; border-radius: 50%;
+            width: 40px; height: 40px; animation: spin 1s linear infinite; margin-bottom: 20px;
+            display: none;
         }
-        @keyframes spin { 
-            0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } 
-        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        /* 刪除原有的 .prediction-text 樣式 */
     </style>
 </head>
 <body>
@@ -108,7 +111,7 @@
     </div>
 
     <script>
-        // DOM 元素
+        // DOM 元素 (保持不變)
         const video = document.getElementById('video');
         const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
@@ -125,12 +128,12 @@
         let model = undefined;
         let animationFrameId = null;
         let score = 0;
-        let currentPose = '站立'; // 站立, 跳躍, 蹲下
+        let currentPose = '站立';
         
         // 姿勢判斷參數
-        let lastHeadY = 0; // 追蹤頭部 Y 座標
-        const POSE_THRESHOLD = 0.05; // Y 軸變化幅度閾值 (相對於畫面高度的 5%)
-        const HEAD_INDEX = 0; // MoveNet 關鍵點索引：鼻子
+        let lastHeadY = 0;
+        const POSE_THRESHOLD = 0.05; 
+        const HEAD_INDEX = 0; 
         
         // 遊戲物件參數
         let obstacle = null;
@@ -140,7 +143,7 @@
 
         // 1. 初始化
         window.onload = async () => {
-            // **【修復全白問題 1】**：確保 tf 和 movenet 物件存在
+            // 檢查 AI 核心是否載入，避免全白
             if (typeof tf === 'undefined' || typeof movenet === 'undefined') {
                 loadingText.textContent = "❌ 核心錯誤：AI 函式庫載入失敗！";
                 infoText.innerHTML = "請檢查網路連線或您的瀏覽器是否支援 WebGL。";
@@ -150,23 +153,20 @@
             await loadModelAndSetupCamera();
         }
 
-        // 2. 載入模型和相機
+        // 2. 載入模型和相機 (從這裡開始替換 COCO-SSD 邏輯)
         async function loadModelAndSetupCamera() {
             loadingText.textContent = "【步驟 1/2】AI 模型下載中 (MoveNet - 約 25 MB)...";
             infoText.innerHTML = "請耐心等待，大型模型首次載入需要時間，期間請勿關閉頁面。";
             loader.style.display = 'block';
 
             try {
-                // A. 載入 MoveNet 模型（Lightning 版本，速度更快）
                 model = await movenet.load(movenet.modelType.SINGLEPOSE_LIGHTNING);
                 
-                // 執行一次預熱推論，確保 GPU 資源被初始化
                 tf.tidy(() => { model.estimatePoses(tf.zeros([1, 192, 192, 3])); });
 
                 loadingText.textContent = "✅ 模型載入完成！正在啟動相機...";
                 infoText.innerHTML = "【步驟 2/2】請允許相機權限，我們將使用前置鏡頭。";
                 
-                // B. 啟動相機 (使用前置鏡頭: user)
                 const cameraSuccess = await setupCamera();
                 if (!cameraSuccess) return; 
 
@@ -208,15 +208,15 @@
             }
         }
 
+        // 4. 調整 Canvas 尺寸以匹配 Video 顯示大小
         function resizeCanvas() {
             canvas.width = video.videoWidth;
             canvas.height = video.videoHeight;
         }
         
-        // 4. 遊戲啟動與循環
+        // 5. 遊戲啟動與循環
         function startGame() {
             if (!gameRunning) {
-                // 隱藏啟動畫面，開始遊戲
                 startScreen.style.display = 'none';
                 statusText.textContent = '🚀 遊戲開始！AI 姿勢偵測中...';
                 
@@ -226,12 +226,10 @@
                 gameRunning = true;
                 generateNewObstacle();
                 
-                // 確保只啟動一次循環
                 if (!animationFrameId) {
                     predictLoop();
                 }
             } else {
-                // 重新開始邏輯
                 score = 0;
                 obstacleSpeed = OBSTACLE_SPEED_INITIAL;
                 gameRunning = true;
@@ -246,7 +244,6 @@
             const type = Math.random() > 0.5 ? 'low' : 'high';
             obstacle = {
                 x: canvas.width, 
-                // 障礙物的 Y 軸位置 (這裡設置在畫面中下部)
                 y: type === 'low' ? canvas.height * 0.75 : canvas.height * 0.45, 
                 width: canvas.width * 0.05,
                 height: canvas.height * 0.1,
@@ -254,7 +251,7 @@
                 passed: false
             };
             
-            obstacleSpeed += 0.0002; // 隨著分數提高速度
+            obstacleSpeed += 0.0002;
 
             if (type === 'low') {
                 currentActionElement.textContent = '⬆️ 跳躍！(躲避低障礙)';
@@ -265,14 +262,14 @@
             }
         }
 
-        // 5. 核心遊戲與 AI 推論循環
+        // 6. 預測循環 (Loop)
         async function predictLoop() {
             if (!model || video.readyState < 2) {
                 animationFrameId = requestAnimationFrame(predictLoop);
                 return;
             }
 
-            // **核心離線推論**
+            // **AI 姿勢偵測 (離線運作)**
             const poses = await model.estimatePoses(video, {
                 flipHorizontal: false, 
                 maxPoses: 1,
@@ -286,6 +283,7 @@
                     const pose = poses[0];
                     currentPose = checkPose(pose);
                     updateGame(pose);
+                    // 繪製關鍵點
                     drawKeypoints(pose.keypoints);
                 } else {
                     currentPose = '無法偵測';
@@ -303,10 +301,9 @@
             animationFrameId = requestAnimationFrame(predictLoop);
         }
         
-        // 6. 姿勢判斷邏輯
+        // 7. 姿勢判斷邏輯
         function checkPose(pose) {
             const nose = pose.keypoints[HEAD_INDEX];
-            // 歸一化 Y 軸位置 (0到1)
             const normalizedY = nose.y / canvas.height; 
             
             if (lastHeadY === 0) {
@@ -314,38 +311,30 @@
                 return '站立';
             }
 
-            const y_diff = normalizedY - lastHeadY; // Y 軸越往下，數字越大
-            
+            const y_diff = normalizedY - lastHeadY;
             let poseResult = '站立';
             
             if (y_diff > POSE_THRESHOLD * 0.7) { 
-                // 頭部往下移動 (蹲下)
                 poseResult = '蹲下';
             } else if (y_diff < -POSE_THRESHOLD * 1.5) { 
-                // 頭部往上移動 (跳躍)
                 poseResult = '跳躍';
             } else {
                 poseResult = '站立';
             }
             
-            // 平滑位置追蹤
             lastHeadY = lastHeadY * 0.8 + normalizedY * 0.2; 
             
             return poseResult;
         }
 
-        // 7. 遊戲邏輯與碰撞偵測
+        // 8. 遊戲邏輯與碰撞偵測
         function updateGame(pose) {
             if (!obstacle) return;
             
-            // 移動障礙物
             obstacle.x -= canvas.width * obstacleSpeed;
-
-            // 繪製障礙物
             ctx.fillStyle = obstacle.type === 'low' ? '#FF4500' : '#1E90FF';
             ctx.fillRect(obstacle.x, obstacle.y, obstacle.width, obstacle.height);
 
-            // 判斷是否通過
             if (obstacle.x + obstacle.width < 0 && !obstacle.passed) {
                 score++;
                 obstacle.passed = true;
@@ -353,7 +342,6 @@
                 return;
             }
             
-            // 碰撞偵測區間 (物體在畫面中間，人物準備動作)
             const collisionZoneStart = canvas.width * 0.35;
             const collisionZoneEnd = canvas.width * 0.65;
             const headY = pose.keypoints[HEAD_INDEX].y; 
@@ -362,11 +350,11 @@
                 let hit = false;
                 
                 if (obstacle.type === 'low') {
-                    // 低障礙 (需跳躍)。如果頭部Y在障礙物下半部且沒有跳躍，則撞到。
+                    // 低障礙 (需跳躍)。
                     if (headY > obstacle.y + obstacle.height / 3 && currentPose !== '跳躍') hit = true;
 
                 } else {
-                    // 高障礙 (需蹲下)。如果頭部Y在障礙物上半部且沒有蹲下，則撞到。
+                    // 高障礙 (需蹲下)。
                     if (headY < obstacle.y + obstacle.height * 2 / 3 && currentPose !== '蹲下') hit = true;
                 }
 
@@ -378,7 +366,7 @@
             }
         }
 
-        // 8. 繪製關鍵點（視覺回饋）
+        // 9. 繪製關鍵點（視覺回饋）
         function drawKeypoints(keypoints) {
             ctx.fillStyle = "#FF00FF";
             keypoints.forEach(keypoint => {
@@ -398,7 +386,7 @@
         }
 
 
-        // 9. 資源清理
+        // 10. 資源清理
         window.onbeforeunload = () => {
             if (animationFrameId) cancelAnimationFrame(animationFrameId);
             if (video.srcObject) {
